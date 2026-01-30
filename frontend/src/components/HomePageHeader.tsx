@@ -15,8 +15,8 @@ export default function HomePageHeader() {
     <header className="z-50 h-[70px] fixed top-0 w-screen border-b border-white/10 bg-gradient-to-r from-[#2c5f7c] to-[#3d7a9a]">
       <div className="w-full flex items-center justify-between px-6 py-4">
         <Link to="/" className="flex items-center gap-2 text-white hover:opacity-80 transition-opacity">
-          <img src={logoImage} alt="OpenED AI Logo" className="h-6 w-auto" />
-          <h1 className="text-xl font-semibold">OpenED AI</h1>
+          <img src={logoImage} alt="Specialization Explorer AI Logo" className="h-6 w-auto" />
+          <h1 className="text-xl font-semibold">Specialization Explorer AI</h1>
         </Link>
         <Select value={mode} onValueChange={(v) => setMode(v as Mode)}>
           <SelectTrigger className="w-fit border-primary-foreground bg-transparent text-white  [&_svg:not([class*='text-'])]:text-primary-foreground hover:bg-white/10">

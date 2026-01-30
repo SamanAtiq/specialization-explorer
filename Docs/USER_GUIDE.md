@@ -2,7 +2,7 @@
 
 **Before you start:** confirm the app is deployed using the deployment guide at `Docs/DEPLOYMENT_GUIDE.md`.
 
-This document summarizes the main user flows, UI controls, and administrative actions in the OpenED AI Assistant frontend. It reflects the current UI and behavior implemented in the frontend code (chat, prompts, practice generation, audio, and admin features).
+This document summarizes the main user flows, UI controls, and administrative actions in the Specialization Explorer frontend. It reflects the current UI and behavior implemented in the frontend code (chat, prompts, practice generation, audio, and admin features).
 
 | Index    | Description |
 | -------- | ------- |

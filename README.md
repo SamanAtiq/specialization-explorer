@@ -1,6 +1,6 @@
-# OER-AI Assistant
+# Specialization Explorer
 
-This prototype explores how Large Language Models (LLMs) can enhance educational experiences by enabling intelligent interaction with Open Educational Resources (OER) textbooks. By leveraging Retrieval-Augmented Generation (RAG), multimodal embeddings, and conversational AI, it provides students with personalized learning assistance, practice material generation, and adaptive tutoring through natural language conversations with textbook content.
+update this later
 
 | Index                                                 | Description                                             |
 | :---------------------------------------------------- | :------------------------------------------------------ |
@@ -135,7 +135,7 @@ Please refer to the [Web App User Guide](Docs/USER_GUIDE.md) for instructions on
      - `database-stack.ts`: RDS PostgreSQL with pgvector extension
      - `dbFlow-stack.ts`: Database migration management
      - `vpc-stack.ts`: VPC, subnets, and networking configuration
-   - `OpenAPI_Swagger_Definition.yaml`: API specification for the OER-AI service
+   - `OpenAPI_Swagger_Definition.yaml`: API specification for the Specialization Explorer service
 2. `/Docs`: Contains comprehensive documentation for the application
    - `DEPLOYMENT_GUIDE.md`: Step-by-step deployment instructions
    - `USER_GUIDE.md` : Complete overview on how to use the application
@@ -196,7 +196,7 @@ For a detailed visualization of the database schema, see the [DBML schema file](
 
 ### For Administrators
 
-- **Textbook Management**: Upload and manage OER textbooks via CSV or direct URL
+- **Textbook Management**: Upload and manage textbooks via CSV or direct URL
 - **Content Ingestion**: Automated processing of textbook content with progress tracking
 - **Analytics Dashboard**: Monitor usage, popular questions, and system performance
 - **FAQ Management**: Review and manage frequently asked questions
@@ -234,7 +234,7 @@ For a detailed visualization of the database schema, see the [DBML schema file](
 
 ## Additional Documentation
 
-For more detailed information about specific aspects of the OER-AI system, please refer to the following documentation:
+For more detailed information about specific aspects of the Specialization Explorer system, please refer to the following documentation:
 
 ### Architecture & Design
 
@@ -242,7 +242,7 @@ For more detailed information about specific aspects of the OER-AI system, pleas
 
 ### Deployment & Configuration
 
-- **[Deployment Guide](Docs/DEPLOYMENT_GUIDE.md)**: Step-by-step instructions for deploying the OER-AI system to AWS
+- **[Deployment Guide](Docs/DEPLOYMENT_GUIDE.md)**: Step-by-step instructions for deploying the Specialization Explorer system to AWS
 - **[Modification Guide](Docs/MODIFICATION_GUIDE.md)**: Guidelines for customizing and extending the application functionality
 - **[Bedrock Guardrails](Docs/BEDROCK_GUARDRAILS.md)**: Configuration and management of AWS Bedrock guardrails for AI safety and content filtering
 
@@ -254,7 +254,7 @@ For more detailed information about specific aspects of the OER-AI system, pleas
 ### API & Usage
 
 - **[API Documentation](Docs/API_DOCUMENTATION.pdf)**: Comprehensive API reference for all REST and WebSocket endpoints
-- **[User Guide](Docs/USER_GUIDE.md)**: Complete guide for end-users on how to interact with the OER-AI Assistant
+- **[User Guide](Docs/USER_GUIDE.md)**: Complete guide for end-users on how to interact with Specialization Explorer
 
 ## Credits
 

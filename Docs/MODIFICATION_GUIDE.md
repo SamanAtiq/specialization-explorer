@@ -279,7 +279,7 @@ To change the website license statement (the footer text), edit the site `Footer
 
 Example steps:
 
-1. Open `frontend/src/components/Footer.tsx` and update the displayed text. Currently the repository has the footer defined as: `© {new Date().getFullYear()} OpenED.` Modify the string to your desired website license, e.g., `© {new Date().getFullYear()}`.
+1. Open `frontend/src/components/Footer.tsx` and update the displayed text. Currently the repository has the footer defined as: `© {new Date().getFullYear()} Specialization Explorer.` Modify the string to your desired website license, e.g., `© {new Date().getFullYear()}`.
 
 ```tsx
 // frontend/src/components/Footer.tsx

@@ -6,7 +6,7 @@ export default function Footer() {
       <div className="container mx-auto px-6 py-6">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="text-sm text-muted-foreground">
-             {new Date().getFullYear()} OpenED. 
+             {new Date().getFullYear()} Specialization Explorer. 
           </div>
           <div className="flex gap-6">
             <Link 

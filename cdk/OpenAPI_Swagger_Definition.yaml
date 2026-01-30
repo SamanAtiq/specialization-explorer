@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
   title: specEx API
-  description: OpenEd AI Assistant API
+  description: Specialization Explorer API
   version: 1.0.0
 tags:
   - name: User

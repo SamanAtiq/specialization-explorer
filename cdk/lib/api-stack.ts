@@ -119,7 +119,7 @@ export class ApiGatewayStack extends cdk.Stack {
         email: true,
       },
       userVerification: {
-        emailSubject: "OpenEd AI Assistant - Verify your email",
+        emailSubject: "Specialization Explorer - Verify your email",
         emailBody: `
                     <html>
                         <head>
@@ -181,17 +181,17 @@ export class ApiGatewayStack extends cdk.Stack {
                         <body>
                             <div class="email-container">
                             <div class="header">
-                                <h1>OpenEd AI Assistant</h1>
+                                <h1>Specialization Explorer</h1>
                             </div>
                             <div class="main-content">
-                                <p>Thank you for signing up for OpenEd AI Assistant!</p>
+                                <p>Thank you for signing up for Specialization Explorer!</p>
                                 <p>Verify your email by using the code below:</p>
                                 <div class="code">{####}</div>
                                 <p>If you did not request this verification, please ignore this email.</p>
                             </div>
                             <div class="footer">
                                 <p>Please do not reply to this email.</p>
-                                <p>OpenEd AI Assistants, 2025</p>
+                                <p>Specialization Explorer, 2025</p>
                             </div>
                             </div>
                         </body>
@@ -986,7 +986,7 @@ export class ApiGatewayStack extends cdk.Stack {
       {
         name: `${id}-specEx-guardrail`,
         description:
-          "Guardrail for OpenEd AI pedagogical tutor to ensure safe and appropriate educational interactions",
+          "Guardrail for Specialization Explorer AI pedagogical tutor to ensure safe and appropriate educational interactions",
         blockedInputMessaging:
           "I'm here to help with your learning! However, I can't assist with that particular request. Let's focus on your textbook material instead. What specific topic would you like to explore?",
         blockedOutputsMessaging:

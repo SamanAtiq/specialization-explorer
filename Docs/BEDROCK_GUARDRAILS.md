@@ -63,7 +63,7 @@ Key snippet from `cdk/lib/api-stack.ts`:
 // Create Bedrock Guardrails
 const bedrockGuardrail = new bedrock.CfnGuardrail(this, "BedrockGuardrail", {
   name: `${id}-specEx-guardrail`,
-  description: "Guardrail for OpenEd AI pedagogical tutor to ensure safe and appropriate educational interactions",
+  description: "Guardrail for Specialization Explorer AI pedagogical tutor to ensure safe and appropriate educational interactions",
   blockedInputMessaging: "I'm here to help with your learning! However, I can't assist with that particular request. Let's focus on your textbook material instead. What specific topic would you like to explore?",
   blockedOutputsMessaging: "I want to keep our conversation focused on learning and education. Let me redirect us back to your studies. What concept from your textbook can I help you understand better?",
   contentPolicyConfig: {

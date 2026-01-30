@@ -48,9 +48,9 @@ export default function Header() {
             className="flex items-center gap-2 hover:opacity-80 transition-opacity"
             aria-label="Navigate to home"
           >
-            <img src={logoImage} alt="OpenED AI Logo" className="h-6 w-auto" />
+            <img src={logoImage} alt="Specialization Explorer AI Logo" className="h-6 w-auto" />
             <h1 className="text-xl font-semibold text-white">
-              OpenED AI
+              Specialization Explorer AI
             </h1>
           </Link>
         </div>
