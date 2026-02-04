@@ -32,7 +32,6 @@ Please refer to the [Web App User Guide](Docs/USER_GUIDE.md) for instructions on
 ```
 ├── cdk/
 │   ├── bin/
-│   ├── glue/
 │   ├── lambda/
 │   │   ├── adminAuthorizerFunction/
 │   │   ├── authorization/
@@ -54,7 +53,6 @@ Please refer to the [Web App User Guide](Docs/USER_GUIDE.md) for instructions on
 │   │   ├── amplify-stack.ts
 │   │   ├── api-stack.ts
 │   │   ├── cicd-stack.ts
-│   │   ├── data-pipeline-stack.ts
 │   │   ├── database-stack.ts
 │   │   ├── dbFlow-stack.ts
 │   │   └── vpc-stack.ts
@@ -110,19 +108,14 @@ Please refer to the [Web App User Guide](Docs/USER_GUIDE.md) for instructions on
 
 1. `/cdk`: Contains the deployment code for the app's AWS infrastructure
    - `/bin`: Contains the instantiation of CDK stacks
-   - `/glue`Contains AWS Glue-related resources for ETL (Extract, Transform, Load) operations:
    - `/lambda`: Contains the Lambda functions for data ingestion, text generation, practice material generation, and other core functionalities
      - `/adminAuthorizerFunction`: Admin authentication and authorization
      - `/authorization`: User authorization logic
      - `/config`: Configuration management (welcome messages, system settings)
-     - `/csvProcessor`: Processes CSV files containing textbook metadata
-     - `/dataIngestion`: Handles textbook ingestion and processing
      - `/db_setup`: Database migrations and schema definitions
      - `/generatePresignedURL`: S3 presigned URL generation for file uploads
      - `/h5pExport`: H5P interactive content export functionality
      - `/handlers`: API handlers for admin, chat, FAQ, and analytics operations
-     - `/mediaJobProcessor`: Contains resources for processing media-related jobs:
-     - `/jobProcessor`: Processes SQS messages and triggers Glue jobs
      - `/practiceMaterial`: Generates practice questions, flashcards, and quizzes
      - `/publicTokenFunction`: Public token generation for unauthenticated access
      - `/textGeneration`: RAG-based conversational AI using Amazon Bedrock
@@ -131,7 +124,6 @@ Please refer to the [Web App User Guide](Docs/USER_GUIDE.md) for instructions on
      - `amplify-stack.ts`: AWS Amplify frontend hosting
      - `api-stack.ts`: API Gateway, Lambda functions, and WebSocket APIs
      - `cicd-stack.ts`: CI/CD pipeline configuration
-     - `data-pipeline-stack.ts`: S3, SQS, Glue jobs for data processing
      - `database-stack.ts`: RDS PostgreSQL with pgvector extension
      - `dbFlow-stack.ts`: Database migration management
      - `vpc-stack.ts`: VPC, subnets, and networking configuration
@@ -219,9 +211,7 @@ For a detailed visualization of the database schema, see the [DBML schema file](
 - **Amazon Bedrock** for LLM inference (Llama 3 70B Instruct)
 - **Amazon Titan Embeddings V2** for multimodal embeddings
 - **PostgreSQL** with **pgvector** for vector storage
-- **AWS Glue** for ETL data processing
 - **Amazon S3** for object storage
-- **Amazon SQS** for message queuing
 - **API Gateway** (REST & WebSocket) for APIs
 - **AWS Cognito** for authentication
 

@@ -2,7 +2,6 @@
 import * as cdk from "aws-cdk-lib";
 import { VpcStack } from "../lib/vpc-stack";
 import { DatabaseStack } from "../lib/database-stack";
-import { DataPipelineStack } from "../lib/data-pipeline-stack";
 import { ApiGatewayStack } from "../lib/api-stack";
 import { DBFlowStack } from "../lib/dbFlow-stack";
 import { AmplifyStack } from "../lib/amplify-stack";
@@ -38,15 +37,6 @@ const dbFlowStack = new DBFlowStack(
   { env }
 );
 
-const dataPipelineStack = new DataPipelineStack(
-  app,
-  `${StackPrefix}-DataPipeline`,
-  {
-    env,
-    vpcStack,
-    databaseStack: dbStack,
-  }
-);
 const cicdStack = new CICDStack(app, `${StackPrefix}-CICD`, {
   env,
   githubRepo: githubRepo,
@@ -70,7 +60,6 @@ const cicdStack = new CICDStack(app, `${StackPrefix}-CICD`, {
     "cdk/lambda/practiceMaterial/**",
   ],
 });
-cicdStack.addDependency(dataPipelineStack);
 
 const apiStack = new ApiGatewayStack(
   app,
@@ -81,8 +70,6 @@ const apiStack = new ApiGatewayStack(
     env,
     ecrRepositories: cicdStack.ecrRepositories,
     codeBuildProjects: cicdStack.buildProjects,
-    csvBucket: dataPipelineStack.csvBucket,
-    textbookIngestionQueue: dataPipelineStack.textbookIngestionQueue,
   }
 );
 apiStack.addDependency(cicdStack);
@@ -105,7 +92,6 @@ const stacks = [
   vpcStack,
   dbStack,
   dbFlowStack,
-  dataPipelineStack,
   cicdStack,
   apiStack,
   amplifyStack,

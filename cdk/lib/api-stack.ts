@@ -10,7 +10,6 @@ import { Code, LayerVersion, Runtime } from "aws-cdk-lib/aws-lambda";
 import * as cognito from "aws-cdk-lib/aws-cognito";
 import { VpcStack } from "./vpc-stack";
 import { DatabaseStack } from "./database-stack";
-import { DataPipelineStack } from "./data-pipeline-stack";
 import * as apigatewayv2 from "aws-cdk-lib/aws-apigatewayv2";
 import { WebSocketLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import { Fn } from "aws-cdk-lib";
@@ -29,8 +28,6 @@ import * as sqs from "aws-cdk-lib/aws-sqs";
 interface ApiGatewayStackProps extends cdk.StackProps {
   ecrRepositories: { [key: string]: ecr.Repository };
   codeBuildProjects?: { [key: string]: codebuild.IProject };
-  csvBucket: s3.Bucket;
-  textbookIngestionQueue: sqs.Queue;
 }
 
 export class ApiGatewayStack extends cdk.Stack {
@@ -843,34 +840,6 @@ export class ApiGatewayStack extends cdk.Stack {
       .defaultChild as lambda.CfnFunction;
     apiGW_publicTokenFunction.overrideLogicalId("PublicTokenFunction");
 
-    const presignedUrlFunction = new lambda.Function(
-      this,
-      `${id}-PresignedUrlFunction`,
-      {
-        functionName: `${id}-presigned-url-generator`,
-        runtime: lambda.Runtime.PYTHON_3_12,
-        code: lambda.Code.fromAsset("lambda/generatePresignedURL"),
-        handler: "generatePreSignedURL.lambda_handler",
-        timeout: Duration.seconds(30),
-        memorySize: 128,
-        environment: {
-          BUCKET: props.csvBucket.bucketName,
-          REGION: this.region,
-        },
-        role: lambdaRole,
-      }
-    );
-
-    props.csvBucket.grantPut(presignedUrlFunction);
-
-    presignedUrlFunction.grantInvoke(
-      new iam.ServicePrincipal("apigateway.amazonaws.com")
-    );
-
-    const apiGW_presignedUrlFunction = presignedUrlFunction.node
-      .defaultChild as lambda.CfnFunction;
-    apiGW_presignedUrlFunction.overrideLogicalId("presignedUrlFunction");
-
     const preSignupLambda = new lambda.Function(this, `preSignupLambda`, {
       runtime: lambda.Runtime.NODEJS_22_X,
       code: lambda.Code.fromAsset("lambda/authorization"),
@@ -1588,7 +1557,6 @@ export class ApiGatewayStack extends cdk.Stack {
           SM_DB_CREDENTIALS: db.secretPathUser.secretName,
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
           DAILY_TOKEN_LIMIT: dailyTokenLimitParameter.parameterName,
-          TEXTBOOK_QUEUE_URL: props.textbookIngestionQueue.queueUrl,
         },
         functionName: `${id}-adminFunction`,
         memorySize: 512,
@@ -1613,15 +1581,6 @@ export class ApiGatewayStack extends cdk.Stack {
       new iam.PolicyStatement({
         actions: ["ssm:GetParameter", "ssm:PutParameter"],
         resources: [dailyTokenLimitParameter.parameterArn],
-      })
-    );
-
-    // Grant SQS send message permissions for re-ingestion
-    lambdaAdminFunction.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["sqs:SendMessage"],
-        resources: [props.textbookIngestionQueue.queueArn],
       })
     );
 
