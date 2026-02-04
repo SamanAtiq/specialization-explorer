@@ -22,7 +22,6 @@ import * as codebuild from "aws-cdk-lib/aws-codebuild";
 import * as ecr from "aws-cdk-lib/aws-ecr";
 import * as s3n from "aws-cdk-lib/aws-s3-notifications";
 import * as bedrock from "aws-cdk-lib/aws-bedrock";
-import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 
 interface ApiGatewayStackProps extends cdk.StackProps {
   ecrRepositories: { [key: string]: ecr.Repository };
@@ -934,19 +933,6 @@ export class ApiGatewayStack extends cdk.Stack {
       }
     );
 
-    // Create DynamoDB table for session management with 30-day TTL
-    const sessionTable = new dynamodb.Table(this, `${id}-ConversationTable`, {
-      tableName: `${id}-DynamoDB-Conversation-Table`,
-      partitionKey: {
-        name: "SessionId",
-        type: dynamodb.AttributeType.STRING,
-      },
-      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      timeToLiveAttribute: "ttl", // Enable TTL on the 'ttl' attribute
-      encryption: dynamodb.TableEncryption.AWS_MANAGED, // Encrypt at rest with AWS-managed keys
-      removalPolicy: cdk.RemovalPolicy.DESTROY, // Use RETAIN for production
-    });
-
     // Create Bedrock Guardrails
     const bedrockGuardrail = new bedrock.CfnGuardrail(
       this,
@@ -1181,7 +1167,6 @@ export class ApiGatewayStack extends cdk.Stack {
           BEDROCK_LLM_PARAM: bedrockLLMParameter.parameterName,
           EMBEDDING_MODEL_PARAM: embeddingModelParameter.parameterName,
           BEDROCK_REGION_PARAM: bedrockRegionParameter.parameterName,
-          TABLE_NAME_PARAM: sessionTable.tableName,
           GUARDRAIL_ID_PARAM: guardrailParameter.parameterName,
           DAILY_TOKEN_LIMIT_PARAM: dailyTokenLimitParameter.parameterName,
           //MESSAGE_LIMIT_PARAM: messageLimitParameter.parameterName,
@@ -1208,26 +1193,6 @@ export class ApiGatewayStack extends cdk.Stack {
       action: "lambda:InvokeFunction",
       sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/chat_sessions*`,
     });
-
-    // DynamoDB permissions for the conversation table - Put/Get/Update/Query operations
-    textGenLambdaDockerFunc.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: [
-          "dynamodb:PutItem", // Put operation
-          "dynamodb:GetItem", // Get operation
-          "dynamodb:UpdateItem", // Update operation
-          "dynamodb:Query", // Query operation
-          "dynamodb:DescribeTable", // Describe table
-          "dynamodb:BatchGetItem", // Batch operations (if needed)
-          "dynamodb:BatchWriteItem", // Batch operations (if needed)
-        ],
-        resources: [
-          sessionTable.tableArn,
-          `${sessionTable.tableArn}/*`, // For GSI/LSI if any are added later
-        ],
-      })
-    );
 
     // Bedrock permissions
     const textGenBedrockPolicyStatement = new iam.PolicyStatement({
@@ -1783,19 +1748,6 @@ export class ApiGatewayStack extends cdk.Stack {
       .defaultChild as lambda.CfnFunction;
     cfnLambda_sharedUserPrompt.overrideLogicalId("sharedUserPromptFunction");
 
-    // DynamoDB table for practice material cache
-    const practiceMaterialCacheTable = new dynamodb.Table(
-      this,
-      `${id}-PracticeMaterialCache`,
-      {
-        tableName: `${id}-practice-material-cache`,
-        partitionKey: { name: "cache_key", type: dynamodb.AttributeType.STRING },
-        billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-        removalPolicy: cdk.RemovalPolicy.DESTROY,
-        timeToLiveAttribute: "expires_at",
-      }
-    );
-
     // Practice Material Lambda (Docker)
     const practiceMaterialDockerFunc = new lambda.DockerImageFunction(
       this,
@@ -1820,8 +1772,6 @@ export class ApiGatewayStack extends cdk.Stack {
           BEDROCK_REGION_PARAM: bedrockRegionParameter.parameterName,
           // Guardrails
           GUARDRAIL_ID_PARAM: guardrailParameter.parameterName,
-          // DynamoDB cache table
-          CACHE_TABLE_NAME: practiceMaterialCacheTable.tableName,
         },
         role: lambdaRole,
       }
@@ -1906,35 +1856,6 @@ export class ApiGatewayStack extends cdk.Stack {
           `arn:aws:bedrock:${this.region}:${this.account}:guardrail/${bedrockGuardrail.attrGuardrailId}`,
           // Guardrail
           `arn:aws:bedrock:${this.region}:${this.account}:guardrail/${bedrockGuardrail.attrGuardrailId}`,
-        ],
-      })
-    );
-
-    // DynamoDB cache permissions
-    practiceMaterialCacheTable.grantReadWriteData(practiceMaterialDockerFunc);
-
-    // Create Lambda function for generating pre-signed URLs
-    const presignedUrlRole = new iam.Role(this, `${id}-PresignedUrlRole`, {
-      roleName: `${id}-PresignedUrlRole`,
-      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
-      managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName(
-          "service-role/AWSLambdaBasicExecutionRole"
-        ),
-      ],
-    });
-
-    // Add explicit CloudWatch Logs permissions
-    presignedUrlRole.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents",
-        ],
-        resources: [
-          `arn:aws:logs:${this.region}:${this.account}:log-group:/aws/lambda/${id}-presigned-url-generator:*`,
         ],
       })
     );
