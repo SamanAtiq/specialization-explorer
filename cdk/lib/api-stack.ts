@@ -1583,16 +1583,6 @@ export class ApiGatewayStack extends cdk.Stack {
       })
     );
 
-    lambdaAdminFunction.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["logs:GetLogEvents", "logs:DescribeLogStreams"],
-        resources: [
-          `arn:aws:logs:${this.region}:${this.account}:log-group:/aws-glue/jobs/output:*`,
-        ],
-      })
-    );
-
     const cfnLambda_admin = lambdaAdminFunction.node
       .defaultChild as lambda.CfnFunction;
     cfnLambda_admin.overrideLogicalId("adminFunction");

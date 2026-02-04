@@ -22,8 +22,6 @@
 
 9. Appointed administrators will have the ability to upload specifically structured CSV files into S3 Buckets via pre-signed URLs to trigger data ingestion jobs for every specified textbook.
 
-10. The textbook ingestion pipeline will destructure each specified textbook ingestion job and queue the textbook for ingestion via a AWS Glue ETL job which will web crawl the textbook pages, extract text, images and metadata, preprocess data, chunk into manageable text windows, and then generate multimodal embeddings via Amazon Bedrock. The embeddings are stored in Amazon RDS PostgreSQL database utilizing pgvector for the vectorstore.
-
 AWS CodePipeline and CodeBuild automates Docker image builds and Lambda deployments for seamless backend updates.
 
 ### Database Schema
