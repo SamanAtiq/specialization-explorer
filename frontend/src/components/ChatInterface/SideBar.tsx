@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useSidebar } from "@/providers/sidebar";
-import { useNavigate, useLocation } from "react-router";
+import { useNavigate } from "react-router";
 import { Separator } from "@/components/ui/separator";
 import { useMode } from "@/providers/mode";
 import { useTextbookView } from "@/providers/textbookView";
@@ -29,8 +29,8 @@ import { useState } from "react";
 import { useSpeech } from "@/contexts/SpeechContext";
 
 type StudentSideBarProps = {
-  textbookTitle: string;
-  textbookAuthor: string;
+  textbookTitle?: string;
+  textbookAuthor?: string;
   textbookId?: string;
   textbookSourceUrl?: string;
 };
@@ -42,12 +42,10 @@ type SidebarContentProps = StudentSideBarProps & {
 function SidebarContent({
   textbookTitle,
   textbookAuthor,
-  textbookId,
   textbookSourceUrl,
   setMobileOpen,
 }: SidebarContentProps) {
   const navigate = useNavigate();
-  const location = useLocation();
   const { mode } = useMode();
   const {
     chatSessions,
@@ -61,34 +59,35 @@ function SidebarContent({
 
   const handleNewChat = async () => {
     const newSession = await createNewChatSession();
-    if (newSession && textbookId) {
-      navigate(`/textbook/${textbookId}/chat`);
+    if (newSession) {
+      navigate(`/chat`);
       setMobileOpen(false);
     }
   };
 
   const handleSelectSession = (sessionId: string) => {
     setActiveChatSessionId(sessionId);
-    if (textbookId) {
-      navigate(`/textbook/${textbookId}/chat`);
-      setMobileOpen(false);
-    }
+    navigate(`/chat`);
+    setMobileOpen(false);
   };
 
   // No debug logs here; keep dialog state local
 
   return (
     <>
+      {/* App title card */}
       <Card className="py-[10px] gap-2 mb-4">
         <CardContent
           className="line-clamp-2 leading-[1.25] overflow-hidden"
           style={{ minHeight: `calc(1em * 1.25 * 2)` }}
         >
-          <h3 className="font-semibold text-sm">{textbookTitle}</h3>
+          <h3 className="font-semibold text-sm">{textbookTitle || "Specialization Explorer"}</h3>
         </CardContent>
-        <CardContent className="line-clamp-1 leading-[1.25] overflow-hidden">
-          <p className="text-xs text-gray-600">By {textbookAuthor}</p>
-        </CardContent>
+        {textbookAuthor && (
+          <CardContent className="line-clamp-1 leading-[1.25] overflow-hidden">
+            <p className="text-xs text-gray-600">By {textbookAuthor}</p>
+          </CardContent>
+        )}
       </Card>
 
       {/* Source URL Link */}
@@ -131,11 +130,10 @@ function SidebarContent({
               key={session.id}
               variant="link"
               onClick={() => handleSelectSession(session.id)}
-              className={`cursor-pointer w-full justify-start px-3 py-2 text-sm rounded-md transition-colors ${
-                activeChatSessionId === session.id
-                  ? "text-foreground font-medium"
-                  : "text-muted-foreground hover:text-foreground hover:underline"
-              }`}
+              className={`cursor-pointer w-full justify-start px-3 py-2 text-sm rounded-md transition-colors ${activeChatSessionId === session.id
+                ? "text-foreground font-medium"
+                : "text-muted-foreground hover:text-foreground hover:underline"
+                }`}
             >
               <MessageSquare className="h-4 w-4 mr-2 flex-shrink-0" />
               {/* temporary place holder for chat names */}
@@ -280,54 +278,14 @@ function SidebarContent({
       </div>
       <Separator className="mb-4" />
       {mode === "student" ? (
-        // student view content
+        // student view content - placeholder for future navigation
         <nav className="space-y-2 mb-4">
-          <Button
-            variant={"link"}
-            className={`cursor-pointer w-full justify-start px-3 py-2 text-sm rounded-md transition-colors ${
-              location.pathname === "/"
-                ? "text-foreground font-medium"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-            onClick={() => {
-              navigate(`/textbook/${textbookId}/faq`);
-              setMobileOpen(false);
-            }}
-          >
-            FAQ
-          </Button>
-          <Button
-            variant={"link"}
-            onClick={() => {
-              navigate(`/textbook/${textbookId}/practice`);
-              setMobileOpen(false);
-            }}
-            className={`cursor-pointer w-full justify-start px-3 py-2 text-sm rounded-md transition-colors ${
-              location.pathname.includes("/practice")
-                ? "text-foreground font-medium"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Practice Material
-          </Button>
+          {/* Future navigation items can be added here */}
         </nav>
       ) : (
-        // instructor view content
+        // instructor view content - placeholder for future navigation
         <nav className="space-y-2 mb-4">
-          <Button
-            variant={"link"}
-            onClick={() => {
-              navigate(`/textbook/${textbookId}/material-editor`);
-              setMobileOpen(false);
-            }}
-            className={`cursor-pointer w-full justify-start px-3 py-2 text-sm rounded-md transition-colors ${
-              location.pathname.includes("/material-editor")
-                ? "text-foreground font-medium"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Material Editor
-          </Button>
+          {/* Future navigation items can be added here */}
         </nav>
       )}
     </>
@@ -357,24 +315,21 @@ export default function SideBar({
 
       {/* Mobile sidebar */}
       <div
-        className={`md:hidden pt-[10px] fixed inset-0 z-40 transition-opacity ${
-          mobileOpen ? "visible" : "pointer-events-none invisible"
-        }`}
+        className={`md:hidden pt-[10px] fixed inset-0 z-40 transition-opacity ${mobileOpen ? "visible" : "pointer-events-none invisible"
+          }`}
         inert={!mobileOpen ? true : undefined}
       >
         {/*mobile backdrop */}
         <div
-          className={`absolute inset-0 bg-black/40 ${
-            mobileOpen ? "opacity-100" : "opacity-0"
-          }`}
+          className={`absolute inset-0 bg-black/40 ${mobileOpen ? "opacity-100" : "opacity-0"
+            }`}
           onClick={() => setMobileOpen(false)}
         />
 
         {/* mobile view Panel */}
         <div
-          className={`pt-[70px] absolute left-0  h-full w-64 bg-muted border-r p-4 transform transition-transform ${
-            mobileOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
+          className={`pt-[70px] absolute left-0  h-full w-64 bg-muted border-r p-4 transform transition-transform ${mobileOpen ? "translate-x-0" : "-translate-x-full"
+            }`}
         >
           <SidebarContent
             textbookTitle={textbookTitle}
