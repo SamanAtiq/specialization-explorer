@@ -9,7 +9,7 @@ import type { ChatSession } from "@/providers/textbookView";
 import { useUserSession } from "@/providers/usersession";
 import HomePageHeader from "@/components/HomePageHeader";
 
-export default function TextbookLayout() {
+export default function HomePage() {
   const { userSessionId } = useUserSession();
 
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);

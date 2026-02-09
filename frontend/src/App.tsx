@@ -3,7 +3,7 @@ import AIChatPage from "./pages/ChatInterface/ChatInterface";
 import UserGuidelines from "./pages/UserGuidelines";
 import { UserSessionProvider } from "./providers/UserSessionContext";
 import { ModeProvider } from "@/providers/ModeContext";
-import TextbookLayout from "./pages/HomePage";
+import HomePage from "./pages/HomePage";
 import AdminLogin from "./pages/Admin/AdminLogin";
 import AdminDashboard from "./pages/Admin/AdminDashboard";
 import TextbookDetailsPage from "./pages/Admin/TextbookDetailsPage";
@@ -69,7 +69,7 @@ function App() {
       <UserSessionProvider>
         <ModeProvider>
           <Routes>
-            <Route path="/" element={<TextbookLayout />}>
+            <Route path="/" element={<HomePage />}>
               <Route path="chat" element={<AIChatPage />} />
             </Route>
             <Route path="/guidelines" element={<UserGuidelines />} />
