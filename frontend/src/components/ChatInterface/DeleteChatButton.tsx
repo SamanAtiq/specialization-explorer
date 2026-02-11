@@ -5,13 +5,13 @@ import { Trash2 } from "lucide-react";
 
 type DeleteChatButtonProps = {
   chatSessionId: string;
-  userSessionId?: string;
+  userId?: string;
   onDeleted?: () => void;
 };
 
-export default function DeleteChatButton({ chatSessionId, userSessionId, onDeleted }: DeleteChatButtonProps) {
+export default function DeleteChatButton({ chatSessionId, userId, onDeleted }: DeleteChatButtonProps) {
   const handleDelete = async (e?: React.MouseEvent) => {
-    try { e?.stopPropagation(); } catch {};
+    try { e?.stopPropagation(); } catch { };
     if (!confirm("Are you sure you want to delete this chat session?")) return;
 
     try {
@@ -22,11 +22,11 @@ export default function DeleteChatButton({ chatSessionId, userSessionId, onDelet
       const token = tokenData.token;
 
       const url = new URL(`${import.meta.env.VITE_API_ENDPOINT}/chat_sessions/${chatSessionId}`);
-      if (userSessionId) url.searchParams.set("user_session_id", userSessionId);
+      if (userId) url.searchParams.set("user_id", userId);
 
       const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-      console.log("DELETE request:", { url: url.toString(), headers, userSessionId });
-      
+      console.log("DELETE request:", { url: url.toString(), headers, userId });
+
       const response = await fetch(url.toString(), {
         method: "DELETE",
         headers,

@@ -4,7 +4,7 @@ import type { Textbook } from "@/types/Textbook";
 export type ChatSession = {
   id: string;
   name: string;
-  user_session_id: string;
+  user_id: string;
   textbook_id: string;
   context?: unknown;
   created_at: string;

@@ -144,7 +144,7 @@ function SidebarContent({
               <div className="ml-auto">
                 <DeleteChatButton
                   chatSessionId={session.id}
-                  userSessionId={session.user_session_id}
+                  userId={session.user_id}
                   onDeleted={async () => {
                     // Refresh sessions and if currently active, unset it
                     await refreshChatSessions();
