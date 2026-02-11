@@ -131,6 +131,51 @@ exports.handler = async (event) => {
         break;
       }
 
+      case "POST /chat_sessions": {
+        const body = parseBody(event.body);
+
+        // Support a couple aliases to ease frontend transition if needed
+        const userId = body.user_id || body.userId || body.user_sessions_session_id;
+
+        if (!userId) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "user_id is required" });
+          break;
+        }
+
+        const title = body.title || null;
+        const metadata = body.metadata || {};
+
+        // Validate user exists
+        const userExists = await sqlConnection`
+          SELECT id FROM users WHERE id = ${userId}
+        `;
+        if (userExists.length === 0) {
+          response.statusCode = 404;
+          response.body = JSON.stringify({ error: "User not found" });
+          break;
+        }
+
+        const now = new Date();
+
+        const chatSessionId = crypto.randomUUID();
+
+        const inserted = await sqlConnection`
+          INSERT INTO chat_sessions (
+            id, user_id, title, created_at, last_active_at, metadata
+          )
+          VALUES (
+            ${chatSessionId}, ${userId}, ${title}, ${now}, ${now}, ${metadata}
+          )
+          RETURNING id, user_id, title, created_at, last_active_at, metadata
+        `;
+
+        response.statusCode = 201;
+        data = inserted[0];
+        response.body = JSON.stringify(data);
+        break;
+      }
+
       // DEPRECATED by /chat_sessions/user/{user_id} --> will delete later
       case "GET /textbooks/{textbook_id}/chat_sessions/user/{user_session_id}":
         const userChatTextbookId = event.pathParameters?.textbook_id;
@@ -158,6 +203,7 @@ exports.handler = async (event) => {
         response.body = JSON.stringify(data);
         break;
 
+      // DEPRECATED by /chat_sessions --> will delete later
       case "POST /textbooks/{textbook_id}/chat_sessions":
         const postChatTextbookId = event.pathParameters?.textbook_id;
         if (!postChatTextbookId) {

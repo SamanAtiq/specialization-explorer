@@ -2110,6 +2110,7 @@ paths:
         httpMethod: POST
         type: aws_proxy
 
+  # DEPRECATED by /user/{user_id} --> will delete later
   /user_sessions/{session_id}:
     <<: *commonOptions
     get:
@@ -3678,6 +3679,78 @@ paths:
         httpMethod: POST
         type: aws_proxy
 
+  /chat_sessions:
+    <<: *commonOptions
+    post:
+      tags:
+        - ChatSessions
+      summary: Create a new chat session for a user
+      operationId: create_chat_session
+      security:
+        - userAuthorizer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user_id
+              properties:
+                user_id:
+                  type: string
+                  format: uuid
+                  description: User UUID (guest/student user)
+                title:
+                  type: string
+                  nullable: true
+                  description: Optional chat title
+                metadata:
+                  type: object
+                  nullable: true
+                  additionalProperties: true
+      responses:
+        "201":
+          description: Chat session created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  user_id:
+                    type: string
+                    format: uuid
+                  title:
+                    type: string
+                    nullable: true
+                  created_at:
+                    type: string
+                    format: date-time
+                  last_active_at:
+                    type: string
+                    format: date-time
+                  metadata:
+                    type: object
+                    nullable: true
+        "400":
+          description: Invalid request
+        "404":
+          description: User not found
+        "401":
+          description: Unauthorized
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${chatSessionFunction.Arn}/invocations
+        passthroughBehavior: "when_no_match"
+        httpMethod: POST
+        type: aws_proxy
+
+  # DEPRECATED by /chat_sessions --> will delete later
   /textbooks/{textbook_id}/chat_sessions:
     <<: *commonOptions
     get:
