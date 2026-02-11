@@ -76,6 +76,58 @@ exports.handler = async (event) => {
         response.body = JSON.stringify(data);
         break;
 
+      case "POST /user": {
+        const body = parseBody(event.body);
+
+        // Default role is student
+        const role = body.role || "student";
+        if (!["student", "admin"].includes(role)) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "Invalid role" });
+          break;
+        }
+
+        const userId = crypto.randomUUID();
+        const email = body.email || null;
+        const displayName = body.display_name || body.displayName || null;
+        const metadata = body.metadata || {};
+
+        const now = new Date();
+
+        // Create a new row (email can be null)
+        const result = await sqlConnection`
+          INSERT INTO users (
+            id, email, display_name, role,
+            created_at, last_seen_at,
+            metadata
+          )
+          VALUES (
+            ${userId}, ${email}, ${displayName}, ${role},
+            ${now}, ${now},
+            ${metadata}
+          )
+          RETURNING
+            id, email, display_name, role,
+            created_at, last_seen_at, metadata
+        `;
+
+        const row = result[0];
+
+        data = {
+          userId: row.id,
+          email: row.email,
+          display_name: row.display_name,
+          role: row.role,
+          created_at: row.created_at,
+          last_seen_at: row.last_seen_at,
+          metadata: row.metadata,
+        };
+
+        response.body = JSON.stringify(data);
+        break;
+      }
+
+      // DEPRECATED by /user --> will delete later
       case "POST /user_sessions":
         // After schema refactor, user_sessions no longer has a separate session_id column.
         // Create a new session row and use its primary key (id) as the public session UUID.
@@ -309,11 +361,9 @@ exports.handler = async (event) => {
 
         const newInteraction = await sqlConnection`
           INSERT INTO user_interactions (chat_session_id, sender_role, query_text, response_text, message_meta, source_chunks, order_index)
-          VALUES (${chat_session_id}, ${sender_role}, ${query_text || null}, ${
-          response_text || null
-        }, ${message_meta || {}}, ${source_chunks || []}, ${
-          order_index || null
-        })
+          VALUES (${chat_session_id}, ${sender_role}, ${query_text || null}, ${response_text || null
+          }, ${message_meta || {}}, ${source_chunks || []}, ${order_index || null
+          })
           RETURNING id, chat_session_id, sender_role, query_text, response_text, message_meta, source_chunks, created_at, order_index
         `;
 
@@ -377,9 +427,8 @@ exports.handler = async (event) => {
         const updated = await sqlConnection`
           UPDATE user_interactions 
           SET sender_role = ${updateSenderRole}, query_text = ${updateQueryText}, response_text = ${updateResponseText}, 
-              message_meta = ${updateMessageMeta || {}}, source_chunks = ${
-          updateSourceChunks || []
-        }, order_index = ${updateOrderIndex}
+              message_meta = ${updateMessageMeta || {}}, source_chunks = ${updateSourceChunks || []
+          }, order_index = ${updateOrderIndex}
           WHERE id = ${updateInteractionId}
           RETURNING id, chat_session_id, sender_role, query_text, response_text, message_meta, source_chunks, created_at, order_index
         `;
@@ -555,9 +604,8 @@ exports.handler = async (event) => {
 
         const updatedAnalytics = await sqlConnection`
           UPDATE analytics_events 
-          SET event_type = ${updateEventType}, properties = ${
-          updateProperties || {}
-        }
+          SET event_type = ${updateEventType}, properties = ${updateProperties || {}
+          }
           WHERE id = ${updateAnalyticsId}
           RETURNING id, user_session_id, event_type, properties, created_at
         `;

@@ -11,7 +11,7 @@ export function UserSessionProvider({ children }: { children: ReactNode }) {
   const LOCAL_KEY = "specEx_user_session";
 
   useEffect(() => {
-    const validateSession = async (stored: {
+    const validateUser = async (stored: {
       sessionUuid: string;
       userSessionId: string;
       createdAt?: string;
@@ -24,11 +24,9 @@ export function UserSessionProvider({ children }: { children: ReactNode }) {
         if (!tokenResp.ok) return false;
         const { token } = await tokenResp.json();
 
-        // Call the user session validation endpoint to check if session exists and is valid
+        // Validate user exists
         const validateResp = await fetch(
-          `${import.meta.env.VITE_API_ENDPOINT}/user_sessions/${
-            stored.sessionUuid
-          }`,
+          `${import.meta.env.VITE_API_ENDPOINT}/user/${stored.sessionUuid}`,
           {
             method: "GET",
             headers: {
@@ -39,12 +37,12 @@ export function UserSessionProvider({ children }: { children: ReactNode }) {
 
         return validateResp.ok;
       } catch (e) {
-        console.error("Error validating user session:", e);
+        console.error("Error validating user:", e);
         return false;
       }
     };
 
-    const createUserSession = async () => {
+    const createUser = async () => {
       try {
         // First get a public token
         const tokenResponse = await fetch(
@@ -53,43 +51,44 @@ export function UserSessionProvider({ children }: { children: ReactNode }) {
         if (!tokenResponse.ok) throw new Error("Failed to get public token");
         const { token } = await tokenResponse.json();
 
-        // Create a user session
-        const response = await fetch(
-          `${import.meta.env.VITE_API_ENDPOINT}/user_sessions`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ role: "student" }), // Default to student on creation
-          }
-        );
+        // Create user
+        const response = await fetch(`${import.meta.env.VITE_API_ENDPOINT}/user`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ role: "student" }), // Default to student on creation
+        });
 
         if (!response.ok) {
-          throw new Error("Failed to create user session");
+          throw new Error("Failed to create user");
         }
 
         const data = await response.json();
+
+        // Support both "new" and "compat" response shapes
+        const id = data.userId ?? data.sessionId ?? data.userSessionId;
+        if (!id) {
+          throw new Error("Create user response missing user id");
+        }
+
         const payload = {
-          sessionUuid: data.sessionId,
-          userSessionId: data.userSessionId,
+          sessionUuid: id, // keep legacy keys for now
+          userSessionId: id,
           createdAt: new Date().toISOString(),
         };
+
         try {
           localStorage.setItem(LOCAL_KEY, JSON.stringify(payload));
         } catch {
-          console.warn("Failed to store user session in localStorage");
+          console.warn("Failed to store user in localStorage");
         }
 
         setSessionUuid(payload.sessionUuid);
         setUserSessionId(payload.userSessionId);
       } catch (err) {
-        setError(
-          err instanceof Error
-            ? err
-            : new Error("Failed to create user session")
-        );
+        setError(err instanceof Error ? err : new Error("Failed to create user"));
       } finally {
         setIsLoading(false);
       }
@@ -105,16 +104,15 @@ export function UserSessionProvider({ children }: { children: ReactNode }) {
               userSessionId: string;
               createdAt?: string;
             };
+
             // basic expiry: 30 days
-            const createdAt = parsed.createdAt
-              ? new Date(parsed.createdAt)
-              : null;
+            const createdAt = parsed.createdAt ? new Date(parsed.createdAt) : null;
             const expired = createdAt
               ? Date.now() - createdAt.getTime() > 1000 * 60 * 60 * 24 * 30
               : false;
 
             if (!expired) {
-              const ok = await validateSession(parsed);
+              const ok = await validateUser(parsed);
               if (ok) {
                 setSessionUuid(parsed.sessionUuid);
                 setUserSessionId(parsed.userSessionId);
@@ -123,17 +121,15 @@ export function UserSessionProvider({ children }: { children: ReactNode }) {
               }
             }
           } catch (e) {
-            console.error("Error parsing stored user session:", e);
+            console.error("Error parsing stored user:", e);
             // parsing error — treat as missing
           }
         }
 
-        // create a new session if none valid
-        await createUserSession();
+        // create a new user if none valid
+        await createUser();
       } catch (e) {
-        setError(
-          e instanceof Error ? e : new Error("Failed to initialize session")
-        );
+        setError(e instanceof Error ? e : new Error("Failed to initialize user"));
         setIsLoading(false);
       }
     };
@@ -142,12 +138,8 @@ export function UserSessionProvider({ children }: { children: ReactNode }) {
   }, []); // Only run once when the app starts
 
   return (
-    <UserSessionContext.Provider
-      value={{ userSessionId, sessionUuid, isLoading, error }}
-    >
+    <UserSessionContext.Provider value={{ userSessionId, sessionUuid, isLoading, error }}>
       {children}
     </UserSessionContext.Provider>
   );
 }
-
-

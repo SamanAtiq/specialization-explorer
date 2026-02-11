@@ -23,7 +23,6 @@ exports.up = (pgm) => {
       display_name varchar,
       role user_role NOT NULL,
       created_at timestamptz DEFAULT now(),
-      first_seen_at timestamptz,
       last_seen_at timestamptz,
       tokens_used bigint DEFAULT 0,
       token_window_started_at timestamptz NOT NULL DEFAULT now(),
