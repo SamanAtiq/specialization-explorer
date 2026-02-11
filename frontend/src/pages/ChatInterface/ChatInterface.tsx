@@ -1,25 +1,13 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router";
-import { ChevronDown, LibraryBig } from "lucide-react";
-import PromptCard from "@/components/ChatInterface/PromptCard";
 import AIChatMessage from "@/components/ChatInterface/AIChatMessage";
 import UserChatMessage from "@/components/ChatInterface/UserChatMessage";
-import GuidedQuestionMessage from "@/components/ChatInterface/GuidedQuestionMessage";
 import ShareChatButton from "@/components/ChatInterface/ShareChatButton";
-import { Button } from "@/components/ui/button";
-import PromptLibraryModal from "@/components/ChatInterface/PromptLibraryModal";
 import { useTextbookView } from "@/providers/textbookView";
 import { AiChatInput } from "@/components/ChatInterface/userInput";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import type {
-  PromptTemplate,
-  SharedUserPrompt,
-  GuidedPromptTemplate,
-  GuidedPromptQuestion,
-  Message,
-} from "@/types/Chat";
+import type { Message } from "@/types/Chat";
 import { useUserSession } from "@/providers/usersession";
-import { useMode } from "@/providers/mode";
 
 export default function AIChatPage() {
   // URL search params for pre-filled questions (from FAQ page)
@@ -27,18 +15,10 @@ export default function AIChatPage() {
 
   // State
   const [message, setMessage] = useState("");
-  const [prompts, setPrompts] = useState<PromptTemplate[]>([]);
-  const [sharedPrompts, setSharedPrompts] = useState<SharedUserPrompt[]>([]);
-  const [guidedPrompts, setGuidedPrompts] = useState<GuidedPromptTemplate[]>(
-    []
-  );
-  const [loading, setLoading] = useState(true);
   const [messages, setMessages] = useState<Message[]>([]);
   const [initialMessageLoadTime, setInitialMessageLoadTime] = useState<
     number | null
   >(null);
-  const [seeMore, setSeeMore] = useState(false);
-  const [showLibrary, setShowLibrary] = useState(false);
 
   // Shared chat state
   const [sharedChatSessionId, setSharedChatSessionId] = useState<string | null>(
@@ -66,23 +46,8 @@ export default function AIChatPage() {
 
   const { sessionUuid } = useUserSession();
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { mode } = useMode();
 
   const textbookTitle = textbook?.title ?? "Calculus: Volume 3";
-
-  const [guidedState, setGuidedState] = useState<{
-    isActive: boolean;
-    templateId: string;
-    questions: GuidedPromptQuestion[];
-    currentIndex: number;
-    answers: string[];
-  }>({
-    isActive: false,
-    templateId: "",
-    questions: [],
-    currentIndex: 0,
-    answers: [],
-  });
 
   // Auto-scroll to bottom when messages change or when typing starts
   const scrollToBottom = useCallback(() => {
@@ -524,133 +489,6 @@ export default function AIChatPage() {
     loadChatHistory();
   }, [activeChatSessionId, sessionUuid, sharedChatSessionId, hasForkedChat]);
 
-  // Fetch prompt templates from API
-  useEffect(() => {
-    const fetchPrompts = async () => {
-      try {
-        // Acquire public token then call the endpoint with Authorization
-        const tokenResponse = await fetch(
-          `${import.meta.env.VITE_API_ENDPOINT}/user/publicToken`
-        );
-        if (!tokenResponse.ok) throw new Error("Failed to get public token");
-        const { token } = await tokenResponse.json();
-
-        const response = await fetch(
-          `${import.meta.env.VITE_API_ENDPOINT}/prompt_templates`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-        const data = await response.json();
-        const templates = data.templates || [];
-        setPrompts(templates);
-
-        // Set guided prompts without questions (lazy load later)
-        const guidedTemplates = templates.filter(
-          (t: PromptTemplate) => t.type === "guided"
-        );
-        setGuidedPrompts(guidedTemplates.length > 0 ? guidedTemplates : []);
-      } catch (error) {
-        console.error("Error fetching prompt templates:", error);
-        setPrompts([]);
-        setGuidedPrompts([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchPrompts();
-  }, []);
-
-  const fetchSharedPrompts = useCallback(async () => {
-    if (!textbook?.id) return; // Need textbook_id
-    try {
-      // Acquire public token
-      const tokenResponse = await fetch(
-        `${import.meta.env.VITE_API_ENDPOINT}/user/publicToken`
-      );
-      if (!tokenResponse.ok) throw new Error("Failed to get public token");
-      const { token } = await tokenResponse.json();
-
-      // Pass role as query param to backend
-      const response = await fetch(
-        `${import.meta.env.VITE_API_ENDPOINT}/textbooks/${textbook.id
-        }/shared_prompts?role=${mode}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-      const data = await response.json();
-      const allSharedPrompts = data.prompts || [];
-      setSharedPrompts(allSharedPrompts);
-    } catch (error) {
-      console.error("Error fetching shared prompts:", error);
-      setSharedPrompts([]);
-    }
-  }, [textbook?.id, mode]);
-
-  const startGuidedConversation = async (template: GuidedPromptTemplate) => {
-    try {
-      // lazy fetch questions for template
-      let questions = template.questions;
-      if (!questions) {
-        const tokenResponse = await fetch(
-          `${import.meta.env.VITE_API_ENDPOINT}/user/publicToken`
-        );
-        const { token } = await tokenResponse.json();
-
-        const questionsResponse = await fetch(
-          `${import.meta.env.VITE_API_ENDPOINT}/prompt_templates/${template.id
-          }/questions`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-        const questionsData = await questionsResponse.json();
-        questions = questionsData.questions || [];
-
-        // Update the template in state with questions
-        setGuidedPrompts((prev) =>
-          prev.map((p) => (p.id === template.id ? { ...p, questions } : p))
-        );
-      }
-
-      if (!questions.length) return;
-
-      setGuidedState({
-        isActive: true,
-        templateId: template.id,
-        questions,
-        currentIndex: 0,
-        answers: [],
-      });
-
-      // Send first question as AI message
-      const firstQuestion = questions[0];
-      const aiMsg: Message = {
-        id: `guided-${Date.now()}`,
-        sender: "bot",
-        text: firstQuestion.question_text,
-        time: Date.now(),
-        isGuidedQuestion: true,
-        guidedData: {
-          templateId: template.id,
-          questionIndex: 0,
-          totalQuestions: questions.length,
-        },
-      };
-      setMessages((prev) => [...prev, aiMsg]);
-    } catch (error) {
-      console.error("Error starting guided conversation:", error);
-    }
-  };
-
   async function sendMessage() {
     let text = message.trim();
     if (!text || !textbook) return;
@@ -724,84 +562,6 @@ export default function AIChatPage() {
     // Ensure we have an active chat session
     if (!activeChatSessionId) return;
 
-    // Handle guided conversation state
-    if (guidedState.isActive) {
-      const newAnswers = [...guidedState.answers, text];
-      const nextIndex = guidedState.currentIndex + 1;
-
-      // Add user's answer to chat
-      const userMsg: Message = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-        sender: "user",
-        text,
-        time: Date.now(),
-      };
-      setMessages((prev) => [...prev, userMsg]);
-      setMessage("");
-
-      if (nextIndex < guidedState.questions.length) {
-        // Ask next question
-        const nextQuestion = guidedState.questions[nextIndex];
-        const aiMsg: Message = {
-          id: `guided-${Date.now()}`,
-          sender: "bot",
-          text: nextQuestion.question_text,
-          time: Date.now() + 1,
-          isGuidedQuestion: true,
-          guidedData: {
-            templateId: guidedState.templateId,
-            questionIndex: nextIndex,
-            totalQuestions: guidedState.questions.length,
-          },
-        };
-        setMessages((prev) => [...prev, aiMsg]);
-        setGuidedState((prev) => ({
-          ...prev,
-          currentIndex: nextIndex,
-          answers: newAnswers,
-        }));
-        return;
-      } else {
-        // All questions answered - construct final prompt by replacing placeholders
-        const template = guidedPrompts.find(
-          (p) => p.id === guidedState.templateId
-        );
-
-        let finalPrompt = template?.description || "";
-
-        // Extract all placeholders from the template description (e.g., [SUBJECT], [X], etc.)
-        const placeholderRegex = /\[([^\]]+)\]/g;
-        const placeholders: string[] = [];
-        let match;
-
-        while (
-          (match = placeholderRegex.exec(template?.description || "")) !== null
-        ) {
-          placeholders.push(match[0]); // Store the full placeholder including brackets
-        }
-
-        // Replace each placeholder with the corresponding user answer
-        newAnswers.forEach((answer, index) => {
-          if (index < placeholders.length) {
-            // replace placeholder with answer
-            finalPrompt = finalPrompt.replace(placeholders[index], answer);
-          }
-        });
-
-        setGuidedState({
-          isActive: false,
-          templateId: "",
-          questions: [],
-          currentIndex: 0,
-          answers: [],
-        });
-
-        // Override text to send final prompt to AI
-        console.log("Final constructed prompt:", finalPrompt);
-        text = finalPrompt;
-      }
-    }
-
     // Create user message for AI generation
     const userMsg: Message = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
@@ -822,7 +582,6 @@ export default function AIChatPage() {
 
     // Add user and bot messages
     setMessages((m) => [...m, userMsg, botMsg]);
-    if (!guidedState.isActive) setMessage(""); // Only clear if not in guided state
     setStreamingMessageId(botMsg.id);
     setIsStreaming(true);
 
@@ -998,15 +757,6 @@ export default function AIChatPage() {
           id={message.id}
         />
       );
-    } else if (message.isGuidedQuestion && message.guidedData) {
-      return (
-        <GuidedQuestionMessage
-          key={message.id}
-          text={message.text}
-          questionIndex={message.guidedData.questionIndex}
-          totalQuestions={message.guidedData.totalQuestions}
-        />
-      );
     } else {
       return (
         <AIChatMessage
@@ -1137,52 +887,6 @@ export default function AIChatPage() {
               />
             </div>
 
-            {/* Prompt Suggestions */}
-            {(messages.length === 0 || seeMore) && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
-                {loading ? (
-                  <div className="col-span-full text-center py-4">
-                    <p className="text-muted-foreground">Loading prompts...</p>
-                  </div>
-                ) : (
-                  prompts
-                    .slice(0, messages.length === 0 && !seeMore ? 3 : 12)
-                    .map((prompt, index) => (
-                      <PromptCard
-                        key={prompt.id || index}
-                        name={prompt.name}
-                        onClick={() => {
-                          setMessage(prompt.description || prompt.name);
-                        }}
-                      />
-                    ))
-                )}
-              </div>
-            )}
-
-            {/* Prompt Options*/}
-            <div className="w-full gap-4 flex justify-end items-center">
-              <Button
-                onClick={() => setShowLibrary(true)}
-                variant={"link"}
-                className="cursor-pointer gap-2 text-sm font-normal text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Prompt Library
-                <LibraryBig className="h-4 w-4" />
-              </Button>
-              <Button
-                onClick={() => setSeeMore(!seeMore)}
-                variant={"link"}
-                className="cursor-pointer gap-2 text-sm font-normal text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {seeMore ? "Show less" : "See more prompts"}
-                <ChevronDown
-                  className={`h-4 w-4 transition-transform ${seeMore ? "rotate-180" : ""
-                    }`}
-                />
-              </Button>
-            </div>
-
             {/* AI Disclaimer */}
             <div className="mt-4 text-center">
               <p className="text-xs text-muted-foreground">
@@ -1191,19 +895,6 @@ export default function AIChatPage() {
             </div>
           </div>
         </div>
-        {/* Prompt Library Modal */}
-        <PromptLibraryModal
-          open={showLibrary}
-          onOpenChange={setShowLibrary}
-          prompts={prompts}
-          sharedPrompts={sharedPrompts}
-          guidedPrompts={guidedPrompts}
-          onSelectPrompt={(msg) => {
-            setMessage(msg);
-          }}
-          onSelectGuidedPrompt={startGuidedConversation}
-          onFetchSharedPrompts={fetchSharedPrompts}
-        />
       </div>
     </div>
   );
