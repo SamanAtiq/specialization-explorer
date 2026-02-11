@@ -257,6 +257,87 @@ exports.handler = async (event) => {
         response.body = JSON.stringify(data);
         break;
 
+      case "GET /user/{user_id}/chat_sessions/{chat_session_id}/chat_history": {
+        const userId = event.pathParameters?.user_id;
+        const chatSessionId = event.pathParameters?.chat_session_id;
+
+        if (!userId) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "user_id is required" });
+          break;
+        }
+        if (!chatSessionId) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "chat_session_id is required" });
+          break;
+        }
+
+        // Validate user exists (optional but nice)
+        const userExists = await sqlConnection`
+          SELECT id FROM users WHERE id = ${userId}
+        `;
+        if (userExists.length === 0) {
+          response.statusCode = 404;
+          response.body = JSON.stringify({ error: "User not found" });
+          break;
+        }
+
+        // Validate chat session exists AND belongs to user
+        const chatSession = await sqlConnection`
+          SELECT id, user_id
+          FROM chat_sessions
+          WHERE id = ${chatSessionId}
+        `;
+        if (chatSession.length === 0) {
+          response.statusCode = 404;
+          response.body = JSON.stringify({ error: "Chat session not found" });
+          break;
+        }
+        if (chatSession[0].user_id !== userId) {
+          response.statusCode = 403;
+          response.body = JSON.stringify({ error: "You can only access your own chat sessions" });
+          break;
+        }
+
+        const limit = Math.min(parseInt(event.queryStringParameters?.limit) || 200, 1000);
+        const offset = parseInt(event.queryStringParameters?.offset) || 0;
+
+        const rows = await sqlConnection`
+          SELECT
+            id,
+            chat_session_id,
+            sender,
+            content,
+            sources,
+            created_at,
+            COUNT(*) OVER() as total_count
+          FROM chat_messages
+          WHERE chat_session_id = ${chatSessionId}
+          ORDER BY created_at ASC, id ASC
+          LIMIT ${limit} OFFSET ${offset}
+        `;
+
+        const total = rows.length > 0 ? parseInt(rows[0].total_count) : 0;
+        const messages = rows.map(({ total_count, ...msg }) => msg);
+
+        data = {
+          chat_session_id: chatSessionId,
+          user_id: userId,
+          messages,
+          pagination: {
+            limit,
+            offset,
+            total,
+            hasMore: offset + limit < total,
+          },
+        };
+
+        response.statusCode = 200;
+        response.body = JSON.stringify(data);
+        break;
+      }
+
+      // DEPRECATED by /user/{user_id}/chat_sessions/{chat_session_id}/chat_history --> will delete later
       case "GET /user_sessions/{session_id}/chat_sessions/{chat_session_id}/interactions":
         const sessionId1 = event.pathParameters?.session_id;
         const chatSessionId1 = event.pathParameters?.chat_session_id;

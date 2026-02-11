@@ -2458,6 +2458,113 @@ paths:
         type: aws_proxy
       x-amazon-apigateway-request-validator: all
 
+  /user/{user_id}/chat_sessions/{chat_session_id}/chat_history:
+    <<: *commonOptions
+    get:
+      tags:
+        - User
+      summary: Get chat history (messages) for a chat session owned by a user
+      operationId: get_chat_session_chat_history
+      security:
+        - userAuthorizer: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: User UUID (owner)
+          schema:
+            type: string
+            format: uuid
+        - name: chat_session_id
+          in: path
+          required: true
+          description: Chat session UUID
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          description: Number of messages to return (default 200, max 1000)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 200
+        - name: offset
+          in: query
+          required: false
+          description: Number of messages to skip (default 0)
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Chat history messages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  chat_session_id:
+                    type: string
+                    format: uuid
+                  user_id:
+                    type: string
+                    format: uuid
+                  messages:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        chat_session_id:
+                          type: string
+                          format: uuid
+                        sender:
+                          type: string
+                          enum: ["user", "AI"]
+                        content:
+                          type: string
+                        sources:
+                          type: object
+                          nullable: true
+                          additionalProperties: true
+                        created_at:
+                          type: string
+                          format: date-time
+                  pagination:
+                    type: object
+                    properties:
+                      limit:
+                        type: integer
+                      offset:
+                        type: integer
+                      total:
+                        type: integer
+                      hasMore:
+                        type: boolean
+        "400":
+          description: Invalid parameters
+        "403":
+          description: Forbidden - user does not own this chat session
+        "404":
+          description: User or chat session not found
+        "401":
+          description: Unauthorized
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${userFunction.Arn}/invocations
+        passthroughBehavior: "when_no_match"
+        httpMethod: POST
+        type: aws_proxy
+
+  # DEPRECATED by /user/{user_id}/chat_sessions/{chat_session_id}/chat_history --> will delete later
   /user_sessions/{session_id}/chat_sessions/{chat_session_id}/interactions:
     <<: *commonOptions
     get:
@@ -4071,6 +4178,82 @@ paths:
         httpMethod: POST
         type: aws_proxy
 
+  /chat_sessions/{chat_session_id}/chat_history:
+    <<: *commonOptions
+    get:
+      tags:
+        - User
+      summary: Get chat history for a chat session
+      operationId: get_chat_history
+      security:
+        - userAuthorizer: []
+      parameters:
+        - name: chat_session_id
+          in: path
+          required: true
+          description: Chat session UUID
+          schema:
+            type: string
+            format: uuid
+        - name: user_id
+          in: query
+          required: false
+          description: Optional user id to verify ownership (recommended)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Chat history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  chat_session_id:
+                    type: string
+                    format: uuid
+                  messages:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        chat_session_id:
+                          type: string
+                          format: uuid
+                        sender:
+                          type: string
+                          enum: ["user", "AI"]
+                        content:
+                          type: string
+                        sources:
+                          type: object
+                          nullable: true
+                          additionalProperties: true
+                        created_at:
+                          type: string
+                          format: date-time
+        "400":
+          description: Invalid chat_session_id
+        "403":
+          description: Forbidden - user does not own this chat session
+        "404":
+          description: Chat session not found
+        "401":
+          description: Unauthorized
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${chatSessionFunction.Arn}/invocations
+        passthroughBehavior: "when_no_match"
+        httpMethod: POST
+        type: aws_proxy
+
+  # DEPRECATED by /chat_sessions/{chat_session_id}/chat_history --> will delete later
   /chat_sessions/{chat_session_id}/interactions:
     <<: *commonOptions
     get:

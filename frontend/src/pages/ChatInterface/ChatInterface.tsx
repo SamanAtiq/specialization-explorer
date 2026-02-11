@@ -351,8 +351,7 @@ export default function AIChatPage() {
 
         // Fetch shared chat history from the public endpoint
         const response = await fetch(
-          `${import.meta.env.VITE_API_ENDPOINT
-          }/chat_sessions/${shareParam}/interactions`,
+          `${import.meta.env.VITE_API_ENDPOINT}/chat_sessions/${shareParam}/chat_history`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -361,62 +360,37 @@ export default function AIChatPage() {
         );
 
         if (!response.ok) {
-          if (response.status === 404) {
-            throw new Error("Chat session not found");
-          }
+          if (response.status === 404) throw new Error("Chat session not found");
           throw new Error("Failed to load shared chat");
         }
 
-        interface SharedInteraction {
+        interface SharedChatMessageRow {
           id: string;
-          sender_role: string;
-          query_text?: string;
-          response_text?: string;
-          source_chunks?: string[];
-          created_at: string;
-          order_index?: number;
+          chat_session_id: string;
+          sender: "user" | "AI";
+          content: string;
+          sources?: any; // jsonb
+          created_at: string; // ISO
         }
 
         const data: {
           chat_session_id: string;
-          textbook_id: string;
-          interactions: SharedInteraction[];
+          messages: SharedChatMessageRow[];
         } = await response.json();
 
-        const chatMessages: Message[] = [];
+        const chatMessages: Message[] = (data.messages || []).map((m) => ({
+          id: m.id,
+          sender: m.sender === "AI" ? ("bot" as const) : ("user" as const),
+          text: m.content,
+          // Your UI currently wants string[]; your DB stores jsonb.
+          // Temporary: wrap sources if present.
+          sources_used: m.sender === "AI" ? (m.sources ? [m.sources] : []) : [],
+          time: new Date(m.created_at).getTime(),
+          isFromSharedChat: true, // optional but useful if you want to visually tag these
+        }));
 
-        // Convert interactions to messages - process in order
-        data.interactions.forEach((interaction, index) => {
-          // Use order_index if available, otherwise use array index
-          const orderValue = interaction.order_index ?? index;
-          const baseTime = orderValue * 1000; // Multiply by 1000 to create distinct timestamps
-
-          // Add user message if query_text exists
-          if (interaction.query_text) {
-            chatMessages.push({
-              id: `${interaction.id}-user`,
-              sender: "user" as const,
-              text: interaction.query_text,
-              sources_used: [],
-              time: baseTime,
-            });
-          }
-
-          // Add AI response if response_text exists
-          if (interaction.response_text) {
-            chatMessages.push({
-              id: `${interaction.id}-ai`,
-              sender: "bot" as const,
-              text: interaction.response_text,
-              sources_used: interaction.source_chunks || [],
-              time: baseTime + 1,
-            });
-          }
-        });
-
-        // Sort by time to ensure proper order
+        // Ensure correct order
         chatMessages.sort((a, b) => a.time - b.time);
-
         setMessages(chatMessages);
 
         // Immediately fork the chat session
@@ -430,15 +404,13 @@ export default function AIChatPage() {
             },
             body: JSON.stringify({
               source_chat_session_id: shareParam,
-              user_session_id: sessionUuid,
+              user_id: sessionUuid,
               textbook_id: textbook?.id,
             }),
           }
         );
 
-        if (!forkResponse.ok) {
-          throw new Error("Failed to fork chat session");
-        }
+        if (!forkResponse.ok) throw new Error("Failed to fork chat session");
 
         const forkData = await forkResponse.json();
         const newChatSessionId = forkData.chat_session_id;
@@ -495,10 +467,17 @@ export default function AIChatPage() {
         if (!tokenResponse.ok) throw new Error("Failed to get public token");
         const { token } = await tokenResponse.json();
 
-        // Get interactions for the specific chat session
+        console.log("A");
+
+        const userId = sessionUuid;
+
+        console.log("B");
+        console.log("token", token)
+        console.log("userId", userId);
+        console.log("activeChatSessionId", activeChatSessionId);
+
         const response = await fetch(
-          `${import.meta.env.VITE_API_ENDPOINT
-          }/user_sessions/${sessionUuid}/chat_sessions/${activeChatSessionId}/interactions`,
+          `${import.meta.env.VITE_API_ENDPOINT}/user/${userId}/chat_sessions/${activeChatSessionId}/chat_history`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -506,51 +485,32 @@ export default function AIChatPage() {
           }
         );
 
-        if (!response.ok) throw new Error("Failed to load chat history");
+        console.log("C");
+        console.log("response", response);
 
-        interface Interaction {
+        if (!response.ok) throw new Error("Failed to load chat history");
+        console.log("D");
+
+        interface ChatMessageRow {
           id: string;
           chat_session_id: string;
-          sender_role: string;
-          query_text?: string;
-          response_text?: string;
-          source_chunks?: string[];
-          created_at: string;
+          sender: "user" | "AI";
+          content: string;
+          sources?: any; // jsonb
+          created_at: string; // ISO
         }
 
-        const data: { interactions: Interaction[] } = await response.json();
-        const chatMessages: Message[] = [];
+        const data: { messages: ChatMessageRow[] } = await response.json();
 
-        // Each interaction contains both user query and AI response
-        // Process in order - backend already sorts by order_index
-        data.interactions.forEach((interaction, index) => {
-          // Use index to create distinct timestamps that preserve order
-          const baseTime = index * 1000;
+        const chatMessages: Message[] = (data.messages || []).map((m) => ({
+          id: m.id,
+          sender: m.sender === "AI" ? ("bot" as const) : ("user" as const),
+          text: m.content,
+          sources_used: m.sender === "AI" ? (m.sources ? [m.sources] : []) : [],
+          time: new Date(m.created_at).getTime(),
+        }));
 
-          // Add user message if query_text exists
-          if (interaction.query_text) {
-            chatMessages.push({
-              id: `${interaction.id}-user`,
-              sender: "user" as const,
-              text: interaction.query_text,
-              sources_used: [],
-              time: baseTime,
-            });
-          }
-
-          // Add AI response if response_text exists
-          if (interaction.response_text) {
-            chatMessages.push({
-              id: `${interaction.id}-ai`,
-              sender: "bot" as const,
-              text: interaction.response_text,
-              sources_used: interaction.source_chunks || [],
-              time: baseTime + 1, // Ensure AI response comes after user message
-            });
-          }
-        });
-
-        // Sort by time to ensure proper order
+        // Ensure order (backend already orders, but safe)
         chatMessages.sort((a, b) => a.time - b.time);
 
         setMessages(chatMessages);
@@ -1066,14 +1026,14 @@ export default function AIChatPage() {
     <div className="w-full max-w-2xl 2xl:max-w-3xl px-4 py-4">
       <div
         className={`flex flex-col w-full ${messages.length === 0
-            ? "justify-center"
-            : "justify-between min-h-[90vh]"
+          ? "justify-center"
+          : "justify-between min-h-[90vh]"
           }`}
       >
         <div
           className={`flex flex-col w-full max-w-2xl 2xl:max-w-3xl px-4 py-4 ${messages.length === 0
-              ? "justify-center"
-              : "justify-between min-h-[90vh]"
+            ? "justify-center"
+            : "justify-between min-h-[90vh]"
             }`}
         >
           {/* top section */}

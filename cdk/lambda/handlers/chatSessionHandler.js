@@ -249,6 +249,61 @@ exports.handler = async (event) => {
         response.body = JSON.stringify(data);
         break;
 
+      case "GET /chat_sessions/{chat_session_id}/chat_history": {
+        const chatSessionId = event.pathParameters?.chat_session_id;
+        const requestingUserId = event.queryStringParameters?.user_id || null;
+
+        if (!chatSessionId) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "chat_session_id is required" });
+          break;
+        }
+
+        // Verify chat session exists
+        const chatSessionResult = await sqlConnection`
+          SELECT id, user_id
+          FROM chat_sessions
+          WHERE id = ${chatSessionId}
+        `;
+
+        if (chatSessionResult.length === 0) {
+          response.statusCode = 404;
+          response.body = JSON.stringify({ error: "Chat session not found" });
+          break;
+        }
+
+        // Ownership validation
+        if (requestingUserId) {
+          const ownerId = chatSessionResult[0].user_id;
+          if (ownerId !== requestingUserId) {
+            response.statusCode = 403;
+            response.body = JSON.stringify({
+              error: "Access denied",
+              message: "You do not have permission to access this chat session",
+            });
+            break;
+          }
+        }
+
+        // Fetch messages
+        const messages = await sqlConnection`
+          SELECT id, chat_session_id, sender, content, sources, created_at
+          FROM chat_messages
+          WHERE chat_session_id = ${chatSessionId}
+          ORDER BY created_at ASC, id ASC
+        `;
+
+        data = {
+          chat_session_id: chatSessionResult[0].id,
+          messages,
+        };
+
+        response.statusCode = 200;
+        response.body = JSON.stringify(data);
+        break;
+      }
+
+      // DEPRECATED by /chat_sessions/{chat_session_id}/chat_history --> will delete later
       case "GET /chat_sessions/{chat_session_id}/interactions":
         const chatSessionId = event.pathParameters?.chat_session_id;
         const requestingUserSessionId = event.queryStringParameters?.user_session_id;
