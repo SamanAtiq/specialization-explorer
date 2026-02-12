@@ -6,18 +6,52 @@ exports.up = (pgm) => {
     -- ==============================
     -- ENUMS
     -- ==============================
-    CREATE TYPE user_role AS ENUM ('student', 'admin');
-    CREATE TYPE sender_role AS ENUM ('user', 'AI');
-    CREATE TYPE data_source_type AS ENUM ('website', 'pdf', 'csv');
-    CREATE TYPE ingestion_status AS ENUM ('running', 'failed', 'completed');
-    CREATE TYPE system_message_type AS ENUM ('system_prompt', 'disclaimer');
+    DO $$ BEGIN
+      CREATE TYPE user_role AS ENUM ('student', 'admin');
+    EXCEPTION
+      WHEN duplicate_object THEN null;
+    END $$;
+
+    DO $$ BEGIN
+      CREATE TYPE sender_role AS ENUM ('user', 'AI');
+    EXCEPTION
+      WHEN duplicate_object THEN null;
+    END $$;
+
+    DO $$ BEGIN
+      CREATE TYPE data_source_type AS ENUM ('website', 'pdf', 'csv');
+    EXCEPTION
+      WHEN duplicate_object THEN null;
+    END $$;
+
+    DO $$ BEGIN
+      CREATE TYPE ingestion_status AS ENUM ('running', 'failed', 'completed');
+    EXCEPTION
+      WHEN duplicate_object THEN null;
+    END $$;
+
+    DO $$ BEGIN
+      CREATE TYPE system_message_type AS ENUM (
+        'disclaimer',
+        'guardrails',
+        'system_role',
+        'system_checklist',
+        'system_instructions',
+        'initial_prompt',
+        'detective_phase_prompt',
+        'suggestion_phase_prompt',
+        'welcome_message'
+      );
+    EXCEPTION
+      WHEN duplicate_object THEN null;
+    END $$;
 
     -- ==============================
     -- TABLES
     -- ==============================
 
     -- Users
-    CREATE TABLE users (
+    CREATE TABLE IF NOT EXISTS users (
       id uuid PRIMARY KEY,
       email varchar UNIQUE,
       display_name varchar,
@@ -30,7 +64,7 @@ exports.up = (pgm) => {
     );
 
     -- Data Sources (admin-managed)
-    CREATE TABLE data_sources (
+    CREATE TABLE IF NOT EXISTS data_sources (
       id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
       display_name varchar(255) NOT NULL,
       actual_name varchar(255) NOT NULL,
@@ -41,7 +75,7 @@ exports.up = (pgm) => {
     );
 
     -- Ingestion Runs (admin visibility)
-    CREATE TABLE ingestion_runs (
+    CREATE TABLE IF NOT EXISTS ingestion_runs (
       id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
       data_source_id uuid,
       status ingestion_status NOT NULL,
@@ -51,7 +85,7 @@ exports.up = (pgm) => {
     );
 
     -- Chat Sessions
-    CREATE TABLE chat_sessions (
+    CREATE TABLE IF NOT EXISTS chat_sessions (
       id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
       user_id uuid NOT NULL,
       title varchar,
@@ -61,7 +95,7 @@ exports.up = (pgm) => {
     );
 
     -- Chat Messages
-    CREATE TABLE chat_messages (
+    CREATE TABLE IF NOT EXISTS chat_messages (
       id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
       chat_session_id uuid NOT NULL,
       sender sender_role NOT NULL,
@@ -71,7 +105,7 @@ exports.up = (pgm) => {
     );
 
     -- Session Feedback
-    CREATE TABLE session_feedback (
+    CREATE TABLE IF NOT EXISTS session_feedback (
       id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
       chat_session_id uuid NOT NULL,
       user_id uuid,
@@ -81,7 +115,7 @@ exports.up = (pgm) => {
     );
 
     -- Analytics Events
-    CREATE TABLE analytics_events (
+    CREATE TABLE IF NOT EXISTS analytics_events (
       id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
       event_type varchar(128) NOT NULL,
       user_id uuid,
@@ -91,7 +125,7 @@ exports.up = (pgm) => {
     );
 
     -- System Messages (allows rollback)
-    CREATE TABLE system_messages (
+    CREATE TABLE IF NOT EXISTS system_messages (
       id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
       type system_message_type NOT NULL,
       content text NOT NULL,
@@ -102,14 +136,14 @@ exports.up = (pgm) => {
     );
 
     -- System Settings
-    CREATE TABLE system_settings (
+    CREATE TABLE IF NOT EXISTS system_settings (
       id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-      max_messages_per_session int,
-      min_messages_before_suggest int,
-      num_specializations_to_suggest int,
-      max_characters_per_user_message int,
-      max_characters_per_ai_message int,
-      welcome_message text,
+      max_messages_per_session int DEFAULT 20,
+      min_messages_before_suggest int DEFAULT 4,
+      max_characters_per_user_message int DEFAULT 2000,
+      max_characters_per_ai_message int DEFAULT 5000,
+      temperature float DEFAULT 0.2,
+      top_p float DEFAULT 0.9,
       updated_by uuid,
       updated_at timestamptz DEFAULT now()
     );
@@ -117,25 +151,74 @@ exports.up = (pgm) => {
     -- ==============================
     -- INDEXES
     -- ==============================
-    CREATE INDEX idx_chat_sessions_user_id ON chat_sessions(user_id);
-    CREATE INDEX idx_chat_messages_chat_session_id ON chat_messages(chat_session_id);
-    CREATE INDEX idx_analytics_events_user_id ON analytics_events(user_id);
-    CREATE INDEX idx_analytics_events_chat_session_id ON analytics_events(chat_session_id);
-    CREATE INDEX idx_ingestion_runs_data_source_id ON ingestion_runs(data_source_id);
+    CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_id ON chat_sessions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_chat_messages_chat_session_id ON chat_messages(chat_session_id);
+    CREATE INDEX IF NOT EXISTS idx_analytics_events_user_id ON analytics_events(user_id);
+    CREATE INDEX IF NOT EXISTS idx_analytics_events_chat_session_id ON analytics_events(chat_session_id);
+    CREATE INDEX IF NOT EXISTS idx_ingestion_runs_data_source_id ON ingestion_runs(data_source_id);
 
     -- ==============================
     -- FOREIGN KEY CONSTRAINTS
     -- ==============================
-    ALTER TABLE data_sources ADD CONSTRAINT fk_data_sources_created_by FOREIGN KEY (created_by) REFERENCES users(id);
-    ALTER TABLE ingestion_runs ADD CONSTRAINT fk_ingestion_runs_data_source_id FOREIGN KEY (data_source_id) REFERENCES data_sources(id);
-    ALTER TABLE chat_sessions ADD CONSTRAINT fk_chat_sessions_user_id FOREIGN KEY (user_id) REFERENCES users(id);
-    ALTER TABLE chat_messages ADD CONSTRAINT fk_chat_messages_chat_session_id FOREIGN KEY (chat_session_id) REFERENCES chat_sessions(id);
-    ALTER TABLE session_feedback ADD CONSTRAINT fk_session_feedback_chat_session_id FOREIGN KEY (chat_session_id) REFERENCES chat_sessions(id);
-    ALTER TABLE session_feedback ADD CONSTRAINT fk_session_feedback_user_id FOREIGN KEY (user_id) REFERENCES users(id);
-    ALTER TABLE analytics_events ADD CONSTRAINT fk_analytics_events_user_id FOREIGN KEY (user_id) REFERENCES users(id);
-    ALTER TABLE analytics_events ADD CONSTRAINT fk_analytics_events_chat_session_id FOREIGN KEY (chat_session_id) REFERENCES chat_sessions(id);
-    ALTER TABLE system_messages ADD CONSTRAINT fk_system_messages_created_by FOREIGN KEY (created_by) REFERENCES users(id);
-    ALTER TABLE system_settings ADD CONSTRAINT fk_system_settings_updated_by FOREIGN KEY (updated_by) REFERENCES users(id);
+    DO $$ BEGIN
+      ALTER TABLE data_sources
+        ADD CONSTRAINT fk_data_sources_created_by
+        FOREIGN KEY (created_by) REFERENCES users(id);
+    EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+    DO $$ BEGIN
+      ALTER TABLE ingestion_runs
+        ADD CONSTRAINT fk_ingestion_runs_data_source_id
+        FOREIGN KEY (data_source_id) REFERENCES data_sources(id);
+    EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+    DO $$ BEGIN
+      ALTER TABLE chat_sessions
+        ADD CONSTRAINT fk_chat_sessions_user_id
+        FOREIGN KEY (user_id) REFERENCES users(id);
+    EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+    DO $$ BEGIN
+      ALTER TABLE chat_messages
+        ADD CONSTRAINT fk_chat_messages_chat_session_id
+        FOREIGN KEY (chat_session_id) REFERENCES chat_sessions(id);
+    EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+    DO $$ BEGIN
+      ALTER TABLE session_feedback
+        ADD CONSTRAINT fk_session_feedback_chat_session_id
+        FOREIGN KEY (chat_session_id) REFERENCES chat_sessions(id);
+    EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+    DO $$ BEGIN
+      ALTER TABLE session_feedback
+        ADD CONSTRAINT fk_session_feedback_user_id
+        FOREIGN KEY (user_id) REFERENCES users(id);
+    EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+    DO $$ BEGIN
+      ALTER TABLE analytics_events
+        ADD CONSTRAINT fk_analytics_events_user_id
+        FOREIGN KEY (user_id) REFERENCES users(id);
+    EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+    DO $$ BEGIN
+      ALTER TABLE analytics_events
+        ADD CONSTRAINT fk_analytics_events_chat_session_id
+        FOREIGN KEY (chat_session_id) REFERENCES chat_sessions(id);
+    EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+    DO $$ BEGIN
+      ALTER TABLE system_messages
+        ADD CONSTRAINT fk_system_messages_created_by
+        FOREIGN KEY (created_by) REFERENCES users(id);
+    EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+    DO $$ BEGIN
+      ALTER TABLE system_settings
+        ADD CONSTRAINT fk_system_settings_updated_by
+        FOREIGN KEY (updated_by) REFERENCES users(id);
+    EXCEPTION WHEN duplicate_object THEN null; END $$;
   `);
 };
 
