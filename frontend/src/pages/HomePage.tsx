@@ -10,6 +10,9 @@ import { useUser } from "@/providers/user";
 import HomePageHeader from "@/components/HomePageHeader";
 import { Button } from "@/components/ui/button";
 
+const DEFAULT_WELCOME_MESSAGE =
+  "Together we will try to find the right program for you. Click below to start a new conversation:";
+
 export default function HomePage() {
   const { userId } = useUser();
   const navigate = useNavigate();
@@ -19,6 +22,43 @@ export default function HomePage() {
     null
   );
   const [isLoadingChatSessions, setIsLoadingChatSessions] = useState(true);
+  const [welcomeMessage, setWelcomeMessage] = useState<string>(
+    DEFAULT_WELCOME_MESSAGE
+  );
+  const [isLoadingWelcome, setIsLoadingWelcome] = useState(true);
+
+  const fetchWelcomeMessage = async () => {
+    setIsLoadingWelcome(true);
+    try {
+      const tokenResponse = await fetch(
+        `${import.meta.env.VITE_API_ENDPOINT}/user/publicToken`
+      );
+      if (!tokenResponse.ok) throw new Error("Failed to get public token");
+      const { token } = await tokenResponse.json();
+
+      const response = await fetch(
+        `${import.meta.env.VITE_API_ENDPOINT}/welcome_message`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch welcome message");
+      }
+
+      const data: { message?: string } = await response.json();
+      setWelcomeMessage(data.message?.trim() || DEFAULT_WELCOME_MESSAGE);
+    } catch (err) {
+      console.error("Error fetching welcome message:", err);
+      setWelcomeMessage(DEFAULT_WELCOME_MESSAGE);
+    } finally {
+      setIsLoadingWelcome(false);
+    }
+  };
 
   // Fetch chat sessions for the user
   const fetchChatSessions = async () => {
@@ -51,12 +91,6 @@ export default function HomePage() {
 
       const sessions: ChatSession[] = await response.json();
       setChatSessions(sessions || []);
-
-      // NOTE: We no longer auto-select most recent session.
-      // HomePage should show welcome until the user starts/chooses a chat.
-      // if (!activeChatSessionId && sessions.length > 0) {
-      //   setActiveChatSessionId(sessions[0].id);
-      // }
     } catch (err) {
       console.error("Error fetching chat sessions:", err);
     } finally {
@@ -65,6 +99,7 @@ export default function HomePage() {
   };
 
   useEffect(() => {
+    fetchWelcomeMessage();
     fetchChatSessions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
@@ -124,7 +159,7 @@ export default function HomePage() {
     );
   };
 
-  // NEW: Welcome CTA action
+  // Welcome CTA action
   const handleStartNewConversation = async () => {
     const session = await createNewChatSession();
     if (session) {
@@ -168,22 +203,21 @@ export default function HomePage() {
             <SideBar />
             <div className="md:ml-64 flex flex-col flex-1">
               <main className="flex-1 flex flex-col items-center justify-center max-w-screen px-4">
-                {/* If no session is active, show welcome screen instead of Outlet */}
                 {!activeChatSessionId ? (
                   <div className="w-full max-w-2xl text-center">
                     <h1 className="text-3xl md:text-4xl font-bold mb-4 leading-tight">
                       Welcome to Specialization Explorer!
                     </h1>
-                    <p className="text-base md:text-lg text-muted-foreground mb-8">
-                      Together we will try to find the right program for you!
-                      <br />
-                      Click below to start a new conversation:
+
+                    <p className="text-base md:text-lg text-muted-foreground mb-8 whitespace-pre-line">
+                      {isLoadingWelcome ? "Loading..." : welcomeMessage}
                     </p>
 
                     <Button
                       size="lg"
                       onClick={handleStartNewConversation}
                       className="px-8"
+                      disabled={isLoadingWelcome}
                     >
                       Start a new conversation
                     </Button>
