@@ -1814,6 +1814,51 @@ paths:
         httpMethod: POST
         type: aws_proxy
 
+  /welcome_message:
+    <<: *commonOptions
+    get:
+      tags:
+        - SystemMessages
+      summary: Get active welcome message
+      operationId: get_welcome_message
+      security:
+        - userAuthorizer: []
+      responses:
+        "200":
+          description: Active welcome message
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  type:
+                    type: string
+                    description: System message type
+                    enum:
+                      - welcome_message
+                  message:
+                    type: string
+                  version:
+                    type: integer
+                  created_at:
+                    type: string
+                    format: date-time
+        "401":
+          description: Unauthorized
+        "404":
+          description: No active welcome message found
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${systemMessagesFunction.Arn}/invocations
+        passthroughBehavior: "when_no_match"
+        httpMethod: POST
+        type: aws_proxy
+
   /chat_sessions/{chat_session_id}:
     <<: *commonOptions
     delete:

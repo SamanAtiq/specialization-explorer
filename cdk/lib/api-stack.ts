@@ -1318,6 +1318,39 @@ export class ApiGatewayStack extends cdk.Stack {
       .defaultChild as lambda.CfnFunction;
     cfnLambda_user.overrideLogicalId("userFunction");
 
+    const lambdaSystemMessagesFunction = new lambda.Function(this, `${id}-systemMessagesFunction`, {
+      runtime: lambda.Runtime.NODEJS_22_X,
+      code: lambda.Code.fromAsset("lambda"),
+      handler: "handlers/systemMessagesHandler.handler",
+      timeout: Duration.seconds(300),
+      vpc: vpcStack.vpc,
+      environment: {
+        SM_DB_CREDENTIALS: db.secretPathUser.secretName,
+        RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
+        USER_POOL: this.userPool.userPoolId,
+      },
+      functionName: `${id}-systemMessagesFunction`,
+      memorySize: 512,
+      layers: [postgres],
+      role: lambdaRole,
+    });
+
+    lambdaSystemMessagesFunction.addPermission("AllowApiGatewayInvoke", {
+      principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
+      action: "lambda:InvokeFunction",
+      sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/member*`,
+    });
+
+    lambdaSystemMessagesFunction.addPermission("AllowTestInvoke", {
+      principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
+      action: "lambda:InvokeFunction",
+      sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/test-invoke-stage/*/*`,
+    });
+
+    const cfnLambda_systemMessages = lambdaSystemMessagesFunction.node
+      .defaultChild as lambda.CfnFunction;
+    cfnLambda_systemMessages.overrideLogicalId("systemMessagesFunction");
+
     // --- Welcome message: public GET and admin PUT ---
     const getWelcomeMessageFunction = new lambda.Function(
       this,
@@ -1389,6 +1422,12 @@ export class ApiGatewayStack extends cdk.Stack {
       principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
       action: "lambda:InvokeFunction",
       sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/user*`,
+    });
+
+    lambdaSystemMessagesFunction.addPermission("AllowAdminApiGatewayInvoke", {
+      principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
+      action: "lambda:InvokeFunction",
+      sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/systemMessages*`,
     });
 
     const lambdaTextbookFunction = new lambda.Function(
