@@ -1,4 +1,3 @@
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -14,7 +13,7 @@ import { useNavigate } from "react-router";
 import { Separator } from "@/components/ui/separator";
 import { useMode } from "@/providers/mode";
 import { useView } from "@/providers/view";
-import { Plus, MessageSquare, ExternalLink, Volume2, ChevronRight } from "lucide-react";
+import { Plus, MessageSquare, Volume2, ChevronRight } from "lucide-react";
 import DeleteChatButton from "./DeleteChatButton";
 import {
   Dialog,
