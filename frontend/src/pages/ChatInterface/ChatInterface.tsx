@@ -22,9 +22,6 @@ export default function AIChatPage() {
   const {
     textbook,
     activeChatSessionId,
-    chatSessions,
-    createNewChatSession,
-    isLoadingChatSessions,
     updateChatSessionName,
   } = useTextbookView();
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
@@ -53,27 +50,6 @@ export default function AIChatPage() {
       setInitialMessageLoadTime(Date.now());
     }
   }, [isLoadingHistory, initialMessageLoadTime]);
-
-  // Initialize chat session if needed
-  useEffect(() => {
-    const initializeChatSession = async () => {
-      // Wait for chat sessions to load
-      if (isLoadingChatSessions) return;
-
-      // If no active chat session and no existing sessions, create one
-      if (!activeChatSessionId && chatSessions.length === 0) {
-        console.log("No chat sessions found, creating new one");
-        await createNewChatSession();
-      }
-    };
-
-    initializeChatSession();
-  }, [
-    activeChatSessionId,
-    chatSessions.length,
-    isLoadingChatSessions,
-    createNewChatSession,
-  ]);
 
   const [webSocketToken, setWebSocketToken] = useState<string | null>(null);
 
