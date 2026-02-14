@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useLocation } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,6 +26,8 @@ export default function AdminLogin() {
   const [isLoading, setIsLoading] = useState(false);
   const [requiresNewPassword, setRequiresNewPassword] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as any)?.from?.pathname || "/admin/dashboard";
 
   useEffect(() => {
     const checkAuthStatus = async () => {
@@ -33,7 +35,7 @@ export default function AdminLogin() {
         const session = await AuthService.getAuthSession(true);
         if (session?.tokens?.accessToken) {
           // User is already authenticated, redirect to dashboard
-          navigate("/admin/dashboard");
+          navigate(from, { replace: true });
         }
       } catch (error) {
         // User is not authenticated, stay on login page
@@ -58,7 +60,7 @@ export default function AdminLogin() {
       }
 
       if (result.isSignedIn) {
-        navigate("/admin/dashboard");
+        navigate(from, { replace: true });
       } else if (
         result.nextStep?.signInStep ===
         "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED"
@@ -96,7 +98,7 @@ export default function AdminLogin() {
       if (user.isSignedIn) {
         // Clear cache to ensure fresh session
         AuthService.clearAuthCache();
-        navigate("/admin/dashboard");
+        navigate(from, { replace: true });
       }
     } catch (err: any) {
       setError(err.message || "Failed to set new password");
