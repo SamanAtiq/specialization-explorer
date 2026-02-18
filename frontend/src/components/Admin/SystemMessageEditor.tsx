@@ -46,7 +46,6 @@ function formatDate(iso?: string) {
 }
 
 export default function SystemMessageEditor({
-  type,
   title,
   description,
   versions,
@@ -74,9 +73,6 @@ export default function SystemMessageEditor({
         <CardTitle className="flex items-center gap-2">
           <Bot className="h-5 w-5 text-[#2c5f7c]" />
           {title}
-          <span className="ml-2 text-xs font-normal text-gray-500">
-            ({type})
-          </span>
         </CardTitle>
         {description ? (
           <CardDescription>{description}</CardDescription>

@@ -421,7 +421,7 @@ export default function SystemSettings() {
                       }))
                     }
                   />
-                  <p className="text-xs text-gray-500">Reject or truncate user messages above this length.</p>
+                  <p className="text-xs text-gray-500">Reject user messages above this length.</p>
                 </div>
 
                 <div className="space-y-2">
@@ -457,7 +457,7 @@ export default function SystemSettings() {
                       }))
                     }
                   />
-                  <p className="text-xs text-gray-500">Controls randomness. Typical range: 0–1 (allowed up to 2).</p>
+                  <p className="text-xs text-gray-500">Controls randomness. Typical range: 0–1</p>
                 </div>
 
                 <div className="space-y-2">
@@ -476,7 +476,7 @@ export default function SystemSettings() {
                       }))
                     }
                   />
-                  <p className="text-xs text-gray-500">Nucleus sampling. Typical range: 0.8–0.95.</p>
+                  <p className="text-xs text-gray-500">Nucleus sampling. Typical range: 0.8–0.95</p>
                 </div>
               </div>
 
