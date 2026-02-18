@@ -545,10 +545,10 @@ export default function TextbookManagement() {
       {/* Metrics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <MetricCard
-          title="Total User sessions"
+          title="Total Users"
           value={loading ? "..." : totalUsers.toString()}
           icon={<Users className="h-5 w-5 text-[#2c5f7c]" />}
-          trend="Unique user sessions"
+          trend="Unique users"
           tooltip="Calculated by summing the user count from each browser cookie."
         />
         <MetricCard
