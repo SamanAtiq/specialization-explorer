@@ -8,7 +8,7 @@ import {
 import { Menu, X } from "lucide-react";
 import { useSidebar } from "@/providers/sidebar";
 import { Link, useLocation, useNavigate } from "react-router";
-import logoImage from "@/assets/specEx_logo_black.png";
+import logoImage from "@/assets/SpecEx-logo.png";
 
 type Mode = "student" | "admin";
 
