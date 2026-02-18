@@ -158,39 +158,39 @@ const MESSAGE_META: Record<
 > = {
   system_role: {
     title: "System Role",
-    description: "The assistant’s role definition.",
+    description: "Defines who the assistant is, what it specializes in, and how it should generally behave.",
   },
   system_checklist: {
     title: "System Checklist",
-    description: "Mandatory checklist used to guide questioning.",
+    description: "A list of key points the assistant should cover to fully understand the user’s needs.",
   },
   system_instructions: {
     title: "System Instructions",
-    description: "Operational instructions for the assistant’s behavior.",
+    description: "Guidelines that control how the assistant formats and delivers its responses.",
   },
   initial_prompt: {
     title: "Initial Prompt",
-    description: "Initial onboarding prompt used to start conversations.",
+    description: "The opening context that sets the direction and purpose of the conversation.",
   },
   detective_phase_prompt: {
     title: "Detective Phase Prompt",
-    description: "Prompt used during the detective / intake phase.",
+    description: "Instructions for asking the right questions to better understand the user’s situation.",
   },
   suggestion_phase_prompt: {
     title: "Suggestion Phase Prompt",
-    description: "Prompt used during the analysis & suggestion phase.",
+    description: "Guidance for turning gathered information into clear, practical recommendations.",
   },
   guardrails: {
     title: "Guardrails",
-    description: "Hard safety and scope constraints for the assistant.",
+    description: "Boundaries that keep the assistant focused, appropriate, and within scope.",
   },
   welcome_message: {
     title: "Welcome Message",
-    description: "Homepage welcome body text above the CTA.",
+    description: "The first message shown to greet the user and start the conversation.",
   },
   disclaimer: {
     title: "Disclaimer",
-    description: "Shown under the welcome CTA and other prominent places.",
+    description: "A short note explaining the limits of the assistant’s advice and responsibility.",
   },
 };
 
