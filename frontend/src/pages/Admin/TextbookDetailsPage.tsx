@@ -14,7 +14,7 @@ import {
   Loader2,
 } from "lucide-react";
 import Footer from "@/components/Footer";
-import logoImage from "@/assets/SpecEx_logo_black.png";
+import logoImage from "@/assets/specex-new-logo.png";
 import {
   LineChart,
   Line,

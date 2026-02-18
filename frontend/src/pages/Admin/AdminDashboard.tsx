@@ -1,11 +1,11 @@
 import { useState } from "react";
 import AdminSidebar from "@/components/Admin/AdminSidebar";
-import TextbookManagement from "@/components/Admin/TextbookManagement";
+import TextbookManagement from "@/components/Admin/DataSourceManagement";
 import Analytics from "@/components/Admin/Analytics";
 import AISettings from "@/components/Admin/AISettings";
 import FAQsAndPrompts from "@/components/Admin/FAQsAndPrompts";
 import Footer from "@/components/Footer";
-import logoImage from "@/assets/SpecEx_logo_black.png";
+import logoImage from "@/assets/specex-new-logo.png";
 
 // --- Components ---
 
@@ -17,9 +17,9 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
       {/* Header */}
-      <header className="bg-gradient-to-r from-[#2c5f7c] to-[#3d7a9a] text-white h-[70px] flex items-center px-6 shadow-md z-10">
+      <header className="bg-gradient-to-r from-primary to-accent text-white h-[70px] flex items-center px-6 shadow-md z-10">
         <div className="flex items-center gap-2">
-          <img src={logoImage} alt="Specialization Explorer AI Logo" className="h-6 w-auto" />
+          <img src={logoImage} alt="Specialization Explorer AI Logo" className="h-10 w-auto" />
           <h1 className="text-xl font-semibold">Specialization Explorer AI Admin</h1>
         </div>
       </header>

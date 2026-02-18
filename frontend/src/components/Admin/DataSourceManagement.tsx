@@ -578,7 +578,7 @@ export default function TextbookManagement() {
                       {/* Add Web URL Button and Dialog */}
                       <Dialog open={isUrlDialogOpen} onOpenChange={setIsUrlDialogOpen}>
                         <DialogTrigger asChild>
-                          <Button variant="outline" className="border-[#2c5f7c] text-[#2c5f7c] hover:bg-[#f0f6fa]">
+                          <Button variant="outline" className="bg-secondary text-white">
                             Add Web URL
                           </Button>
                         </DialogTrigger>
@@ -643,7 +643,7 @@ export default function TextbookManagement() {
                       </Dialog>
             <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
               <DialogTrigger asChild>
-                <Button className="bg-[#2c5f7c] hover:bg-[#234d63]">
+                <Button className="bg-secondary text-white">
                   <Upload className="mr-2 h-4 w-4" />
                   Add Alumni Data (CSV)
                 </Button>
