@@ -10,6 +10,7 @@ import {
   HelpCircle,
   Loader2,
   AlertTriangle,
+  MessageCircleMore,
 } from "lucide-react";
 import { AuthService } from "@/functions/authService";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -53,6 +54,9 @@ type PaginationInfo = {
 };
 
 export default function TextbookManagement() {
+    const [isUrlDialogOpen, setIsUrlDialogOpen] = useState(false);
+    const [webUrl, setWebUrl] = useState("");
+    const [webUrlStatus, setWebUrlStatus] = useState<{ type: "success" | "error" | null; message: string }>({ type: null, message: "" });
   const [textbooks, setTextbooks] = useState<TextbookData[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isUploadOpen, setIsUploadOpen] = useState(false);
@@ -516,7 +520,7 @@ export default function TextbookManagement() {
     (sum, book) => sum + (book.users || 0),
     0
   );
-  const totalQuestions = textbooks.reduce(
+  const totalMessages = textbooks.reduce(
     (sum, book) => sum + (book.questions || 0),
     0
   );
@@ -526,7 +530,7 @@ export default function TextbookManagement() {
       <div>
         <h2 className="text-3xl font-bold text-gray-900">Admin Dashboard</h2>
         <p className="text-gray-500 mt-1">
-          Manage your textbooks and view platform overview.
+          Manage your data sources and platform overview.
         </p>
       </div>
 
@@ -541,25 +545,25 @@ export default function TextbookManagement() {
       {/* Metrics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <MetricCard
-          title="Total User sessions"
+          title="Total Users"
           value={loading ? "..." : totalUsers.toString()}
           icon={<Users className="h-5 w-5 text-[#2c5f7c]" />}
-          trend="Unique user sessions"
-          tooltip="Calculated by summing the user count from each textbook."
+          trend="Unique users"
+          tooltip="Calculated by summing the user count from each browser cookie."
         />
         <MetricCard
-          title="Total Questions"
-          value={loading ? "..." : totalQuestions.toLocaleString()}
+          title="Total Chat sessions"
+          value={loading ? "..." : totalUsers.toString()}
+          icon={<MessageCircleMore className="h-5 w-5 text-[#2c5f7c]" />}
+          trend="Total Chat sessions"
+          tooltip="Calculated by summing the total chats by all users across all users."
+        />
+        <MetricCard
+          title="Total Messages"
+          value={loading ? "..." : totalMessages.toLocaleString()}
           icon={<HelpCircle className="h-5 w-5 text-[#3d7a9a]" />}
-          trend="Questions asked across all textbooks"
-          tooltip="Calculated by summing the question count from each textbook."
-        />
-        <MetricCard
-          title="Total Textbooks"
-          value={loading ? "..." : textbooks.length.toString()}
-          icon={<FileText className="h-5 w-5 text-[#2c5f7c]" />}
-          trend="Active textbooks in the system"
-          tooltip="Total count of textbooks currently registered in the system."
+          trend="Total Messages Exchanged"
+          tooltip="Calculated by summing the message count from each user chat session."
         />
       </div>
 
@@ -567,22 +571,88 @@ export default function TextbookManagement() {
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <h3 className="text-xl font-semibold text-gray-900">
-            Textbook Management
+            Data Sources
           </h3>
           <div className="flex gap-2">
+                      
+                      {/* Add Web URL Button and Dialog */}
+                      <Dialog open={isUrlDialogOpen} onOpenChange={setIsUrlDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" className="bg-secondary text-white">
+                            Add Web URL
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-md">
+                          <DialogHeader>
+                            <DialogTitle>Add Web URL</DialogTitle>
+                            <DialogDescription>
+                              Enter the URL of the web resource you want to add as a data source.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="grid gap-4 py-4">
+                            <Input
+                              type="url"
+                              placeholder="https://example.com/resource"
+                              value={webUrl}
+                              onChange={e => {
+                                setWebUrl(e.target.value);
+                                setWebUrlStatus({ type: null, message: "" });
+                              }}
+                            />
+                            {webUrlStatus.message && (
+                              <div
+                                className={`text-sm p-2 rounded ${webUrlStatus.type === "success" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
+                              >
+                                {webUrlStatus.message}
+                              </div>
+                            )}
+                          </div>
+                          <DialogFooter>
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                setIsUrlDialogOpen(false);
+                                setWebUrl("");
+                                setWebUrlStatus({ type: null, message: "" });
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              className="bg-[#2c5f7c] hover:bg-[#234d63]"
+                              onClick={() => {
+                                // Basic URL validation
+                                if (!webUrl || !/^https?:\/\//.test(webUrl)) {
+                                  setWebUrlStatus({ type: "error", message: "Please enter a valid URL (must start with http:// or https://)." });
+                                  return;
+                                }
+                                // TODO: Handle submit (API call or state update)
+                                setWebUrlStatus({ type: "success", message: "URL added successfully (not yet implemented)." });
+                                setTimeout(() => {
+                                  setIsUrlDialogOpen(false);
+                                  setWebUrl("");
+                                  setWebUrlStatus({ type: null, message: "" });
+                                }, 1500);
+                              }}
+                              disabled={!webUrl}
+                            >
+                              Add URL
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
             <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
               <DialogTrigger asChild>
-                <Button className="bg-[#2c5f7c] hover:bg-[#234d63]">
+                <Button className="bg-secondary text-white">
                   <Upload className="mr-2 h-4 w-4" />
-                  Add Textbooks (CSV)
+                  Add Alumni Data (CSV)
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Upload Textbook CSV</DialogTitle>
+                  <DialogTitle>Upload Alumni CSV</DialogTitle>
                   <DialogDescription>
-                    Upload a detailed CSV file containing textbook metadata,
-                    chapters, and content links. Max size 50MB.
+                    Upload a detailed CSV file containing alumni metadata. Max size 50MB. 
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
@@ -661,8 +731,7 @@ export default function TextbookManagement() {
                   <div className="text-xs text-gray-500">
                     <p className="font-medium mb-1">Required CSV Columns:</p>
                     <code className="bg-gray-100 px-1 py-0.5 rounded">
-                      Title, Author, Source (url), Book ID, others will be added
-                      to the metadata
+                      Column 1, Column 2, Column 3, Column 4, Column 5...
                     </code>
                   </div>
                 </div>
@@ -696,7 +765,7 @@ export default function TextbookManagement() {
               </DialogContent>
             </Dialog>
 
-            <Dialog
+            {/* <Dialog
               open={isMediaUploadOpen}
               onOpenChange={setIsMediaUploadOpen}
             >
@@ -823,7 +892,7 @@ export default function TextbookManagement() {
                   </Button>
                 </DialogFooter>
               </DialogContent>
-            </Dialog>
+            </Dialog> */}
           </div>
         </div>
 
@@ -832,7 +901,7 @@ export default function TextbookManagement() {
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
               <Input
-                placeholder="Search by Title or Author..."
+                placeholder="Search your Sources"
                 className="pl-9 max-w-md bg-gray-50 border-gray-200"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -843,10 +912,8 @@ export default function TextbookManagement() {
             <Table>
               <TableHeader className="bg-gray-50">
                 <TableRow>
-                  <TableHead className="w-[40%]">Title</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Users</TableHead>
-                  <TableHead>Questions</TableHead>
+                  <TableHead className="w-[40%]">Name</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Re-ingest</TableHead>
                   <TableHead>Delete</TableHead>
@@ -866,12 +933,18 @@ export default function TextbookManagement() {
                   </TableRow>
                 ) : filteredTextbooks.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8">
-                      <p className="text-gray-500">
-                        {searchQuery
-                          ? "No textbooks found matching your search."
-                          : "No textbooks available."}
-                      </p>
+                    <TableCell className="text-black-400 italic">https://example.com/</TableCell>
+                    <TableCell className="text-black-400 italic">Web </TableCell>
+                    <TableCell className="text-black-400 italic">Successful</TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-green-500" disabled>
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" disabled>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -898,6 +971,10 @@ export default function TextbookManagement() {
                         </div>
                       </TableCell>
                       <TableCell>
+                        {/* Placeholder for Type column, update as needed */}
+                        <span className="text-gray-500 text-sm">-</span>
+                      </TableCell>
+                      <TableCell>
                         <Badge
                           variant={
                             book.status === "Active" ? "default" : "secondary"
@@ -912,24 +989,6 @@ export default function TextbookManagement() {
                         >
                           {book.status}
                         </Badge>
-                      </TableCell>
-                      <TableCell className="text-gray-600">
-                        {book.users}
-                      </TableCell>
-                      <TableCell className="text-gray-600">
-                        {book.questions}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2 mr-2">
-                          <span className="text-xs text-gray-400 hidden sm:inline">
-                            {book.status === "Active" ? "Enabled" : "Disabled"}
-                          </span>
-                          <Switch
-                            checked={book.status === "Active"}
-                            onCheckedChange={() => toggleStatus(book.id)}
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </div>
                       </TableCell>
                       <TableCell>
                         <Button
@@ -994,154 +1053,6 @@ export default function TextbookManagement() {
           )}
         </Card>
       </div>
-
-      {/* Re-Ingestion Confirmation Dialog */}
-      <Dialog
-        open={reIngestDialog.open}
-        onOpenChange={(open) =>
-          !reIngestDialog.isProcessing &&
-          setReIngestDialog({ open, textbookId: null, isProcessing: false })
-        }
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-600">
-              <AlertTriangle className="h-5 w-5" />
-              Re-Ingest Textbook
-            </DialogTitle>
-            <DialogDescription className="space-y-3 pt-2">
-              <p className="font-semibold text-gray-900">
-                This action will delete and re-ingest ALL data for this
-                textbook:
-              </p>
-              <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
-                <li>All sections and chapters will be deleted</li>
-                <li>All associated media items will be removed</li>
-                <li>All vector embeddings will be cleared</li>
-                <li>The textbook will be re-processed and re-ingested</li>
-              </ul>
-              <p className="text-sm font-medium text-amber-700 bg-amber-50 p-3 rounded border border-amber-200">
-                ⚠️ This process cannot be undone. The textbook will be
-                unavailable during re-ingestion.
-              </p>
-              <p className="text-sm text-gray-600">
-                Do you want to continue with re-ingestion?
-              </p>
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              onClick={() =>
-                setReIngestDialog({
-                  open: false,
-                  textbookId: null,
-                  isProcessing: false,
-                })
-              }
-              disabled={reIngestDialog.isProcessing}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={confirmReIngest}
-              disabled={reIngestDialog.isProcessing}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              {reIngestDialog.isProcessing ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Yes, Re-Ingest
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog
-        open={deleteDialog.open}
-        onOpenChange={(open) =>
-          !deleteDialog.isProcessing &&
-          setDeleteDialog({
-            open,
-            textbookId: null,
-            textbookTitle: "",
-            isProcessing: false,
-          })
-        }
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-600">
-              <AlertTriangle className="h-5 w-5" />
-              Delete Textbook
-            </DialogTitle>
-            <DialogDescription className="space-y-3 pt-2">
-              <p className="font-semibold text-gray-900">
-                Are you sure you want to permanently delete "
-                {deleteDialog.textbookTitle}"?
-              </p>
-              <p className="text-sm text-gray-700">
-                This action will permanently delete:
-              </p>
-              <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
-                <li>The textbook record and all metadata</li>
-                <li>All sections and chapters</li>
-                <li>All associated media items (images, videos, etc.)</li>
-                <li>All vector embeddings</li>
-                <li>All user interactions and chat history</li>
-                <li>All ingestion job records</li>
-              </ul>
-              <p className="text-sm font-medium text-red-700 bg-red-50 p-3 rounded border border-red-200">
-                ⚠️ This action cannot be undone. All data associated with this
-                textbook will be permanently lost.
-              </p>
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              onClick={() =>
-                setDeleteDialog({
-                  open: false,
-                  textbookId: null,
-                  textbookTitle: "",
-                  isProcessing: false,
-                })
-              }
-              disabled={deleteDialog.isProcessing}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={confirmDelete}
-              disabled={deleteDialog.isProcessing}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              {deleteDialog.isProcessing ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                <>
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Yes, Delete Permanently
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

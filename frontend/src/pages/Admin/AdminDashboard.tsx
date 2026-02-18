@@ -1,6 +1,6 @@
 import { useState } from "react";
 import AdminSidebar from "@/components/Admin/AdminSidebar";
-import TextbookManagement from "@/components/Admin/TextbookManagement";
+import TextbookManagement from "@/components/Admin/DataSourceManagement";
 import Analytics from "@/components/Admin/Analytics";
 import SystemSettings from "@/components/Admin/SystemSettings";
 

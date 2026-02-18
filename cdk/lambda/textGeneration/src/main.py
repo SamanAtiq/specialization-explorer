@@ -14,11 +14,11 @@ REGION = os.environ["REGION"]
 RDS_PROXY_ENDPOINT = os.environ["RDS_PROXY_ENDPOINT"]
 BEDROCK_LLM_PARAM = os.environ.get("BEDROCK_LLM_PARAM")
 EMBEDDING_MODEL_PARAM = os.environ.get("EMBEDDING_MODEL_PARAM")
+EMBEDDING_MODEL_PARAM = os.environ.get("EMBEDDING_MODEL_PARAM")
 BEDROCK_REGION_PARAM = os.environ.get("BEDROCK_REGION_PARAM")
-GUARDRAIL_ID_PARAM = os.environ.get("GUARDRAIL_ID_PARAM")
-WEBSOCKET_API_ENDPOINT = os.environ.get("WEBSOCKET_API_ENDPOINT", "")
-TABLE_NAME_PARAM = os.environ.get("TABLE_NAME_PARAM")
 DAILY_TOKEN_LIMIT_PARAM = os.environ.get("DAILY_TOKEN_LIMIT_PARAM")
+WEBSOCKET_API_ENDPOINT = os.environ.get("WEBSOCKET_API_ENDPOINT", "")
+KB_SECRET_NAME = "knowledge-base-id" # Secret name for KB ID
 COLD_START_METRIC = os.environ.get("COLD_START_METRIC", "false").lower() == "true"
 FORCE_COLD_START_TEST = os.environ.get("FORCE_COLD_START_TEST", "false").lower() == "true"
 #comment to invoke code pipeline
@@ -37,7 +37,7 @@ _startup_ts = time.time()
 BEDROCK_LLM_ID = None
 EMBEDDING_MODEL_ID = None
 BEDROCK_REGION = None
-GUARDRAIL_ID = None
+KNOWLEDGE_BASE_ID = None
 
 # Pre-load critical configuration during container startup (outside handler)
 try:
@@ -63,9 +63,18 @@ try:
         BEDROCK_REGION = REGION
         logger.info(f"Using deployment region as BEDROCK_REGION: {BEDROCK_REGION}")
     
-    if GUARDRAIL_ID_PARAM:
-        GUARDRAIL_ID = _ssm_client.get_parameter(Name=GUARDRAIL_ID_PARAM, WithDecryption=True)["Parameter"]["Value"]
-        logger.info(f"Pre-loaded GUARDRAIL_ID")
+    else:
+        BEDROCK_REGION = REGION
+        logger.info(f"Using deployment region as BEDROCK_REGION: {BEDROCK_REGION}")
+    
+    # Pre-fetch KB ID from Secrets Manager
+    try:
+        secret_response = _secrets_manager.get_secret_value(SecretId=KB_SECRET_NAME)
+        if 'SecretString' in secret_response:
+            KNOWLEDGE_BASE_ID = secret_response['SecretString']
+            logger.info(f"Pre-loaded KNOWLEDGE_BASE_ID from secret")
+    except Exception as secret_error:
+        logger.warning(f"Failed to pre-load KB ID from secret: {secret_error}")
     
     logger.info(f"Pre-loading completed in {time.time() - _startup_ts:.2f}s")
 except Exception as e:
@@ -176,7 +185,9 @@ def initialize_constants():
     # Constants are already pre-loaded at module level
     # This function is kept for compatibility but does nothing now
     if BEDROCK_LLM_ID is None:
-        logger.warning("BEDROCK_LLM_ID not pre-loaded, this should not happen")
+        logger.warning("BEDROCK_LLM_ID not pre-loaded. This may indicate configuration issues.")
+    if KNOWLEDGE_BASE_ID is None:
+        logger.warning("KNOWLEDGE_BASE_ID not pre-loaded.")
     pass
 
 
@@ -284,7 +295,6 @@ def process_query_streaming(query, textbook_id, retriever, chat_session_id, webs
             guardrail_id=GUARDRAIL_ID,
             websocket_endpoint=websocket_endpoint,
             connection_id=connection_id,
-            table_name=TABLE_NAME_PARAM,
             bedrock_llm_id=BEDROCK_LLM_ID
         )
     except Exception as e:
@@ -309,63 +319,7 @@ def process_query_streaming(query, textbook_id, retriever, chat_session_id, webs
         }
 
 
-def process_query(query, textbook_id, retriever, chat_session_id, connection=None):
-    """
-    Process a query using the chat helper function
-    
-    Args:
-        query: The user's question
-        textbook_id: ID of the textbook
-        retriever: Vector store retriever for the textbook
-        connection: Optional database connection for fetching custom prompts
-        
-    Returns:
-        Response dictionary with answer and sources used
-    """
-    # Lazy import
-    from helpers.chat import get_bedrock_llm, get_response
-    
-    # Log the model ID being used
-    logger.info(f"Processing query with LLM model ID: '{BEDROCK_LLM_ID}'")
-    logger.info(f"Environment variables: REGION={REGION}, RDS_PROXY_ENDPOINT={RDS_PROXY_ENDPOINT}")
-    
-    try:
-        # Initialize LLM
-        logger.info(f"Initializing Bedrock LLM with model ID: {BEDROCK_LLM_ID}")
-        llm = get_bedrock_llm(BEDROCK_LLM_ID, bedrock_region=BEDROCK_REGION)
-        
-        # Test the LLM with a simple message to verify it works
-        try:
-            logger.info(f"Testing LLM with a simple message...")
-            test_message = llm.invoke("This is a test. Respond with 'OK' if you receive this message.")
-            logger.info(f"LLM test successful. Response content type: {type(test_message)}")
-        except Exception as test_error:
-            logger.error(f"LLM test failed: {str(test_error)}")
-            logger.error(f"This may indicate the model ID {BEDROCK_LLM_ID} is not available in region {REGION}")
-            raise
-        
-        # Log the embeddings model ID for context
-        logger.info(f"Using embedding model ID: {EMBEDDING_MODEL_ID}")
-        
-        # Use the helper function from chat.py to generate the response
-        logger.info(f"Calling get_response with textbook_id: {textbook_id}")
-        return get_response(
-            query=query,
-            textbook_id=textbook_id,
-            llm=llm,
-            retriever=retriever,
-            chat_session_id=chat_session_id,
-            connection=connection,
-            guardrail_id=GUARDRAIL_ID
-        )
-    except Exception as e:
-        logger.error(f"Error in process_query: {str(e)}", exc_info=True)
-        logger.error(f"Model ID: {BEDROCK_LLM_ID}, Region: {REGION}")
-        # Return a graceful error message
-        return {
-            "response": f"I'm sorry, I encountered an error while processing your question. The error has been logged for our team to investigate.",
-            "sources_used": []
-        }
+# Legacy process_query removed. Use helpers.chat.get_response instead.
 
 def handler(event, context):
     """
@@ -412,16 +366,21 @@ def handler(event, context):
     path_params = event.get("pathParameters", {})
     logger.info(f"Request path parameters: {path_params}")
     
-    chat_session_id = path_params.get("id", "")
-    
     # Parse request body
     body = {} if event.get("body") is None else json.loads(event.get("body"))
+    
+    # PARAMETER EXTRACTION UPDATE:
+    # 1. Try to get from path parameters (REST API standard: /chat_sessions/{id}/text_generation)
+    # 2. Try to get from body (WebSocket standard)
+    chat_session_id = path_params.get("chat_session_id") or path_params.get("id") or body.get("chat_session_id")
+    
     question = body.get("query", "")
     textbook_id = body.get("textbook_id", "")
 
     try:
+    try:
         initialize_constants()
-        logger.info(f"✅ Initialized constants - LLM: {BEDROCK_LLM_ID}, Embeddings: {EMBEDDING_MODEL_ID}, Bedrock Region: {BEDROCK_REGION}")
+        logger.info(f"✅ Initialized constants - LLM: {BEDROCK_LLM_ID}, Region: {BEDROCK_REGION}")
     except Exception as e:
         logger.error(f"❌ Failed to initialize constants: {e}")
         return finalize({
@@ -446,40 +405,6 @@ def handler(event, context):
     
     connection = None
     
-    try:
-        # Lazy import of helper modules
-        from helpers.vectorstore import get_textbook_retriever
-        from helpers.faq_cache import check_faq_cache, cache_faq, stream_cached_response
-        from helpers.token_limit_helper import (
-            get_user_session_from_chat_session,
-            check_and_update_token_limit,
-            get_session_token_status
-        )
-        from helpers.chat import update_session_name
-        # SECURITY: Import session security helpers
-        from helpers.session_security import (
-            validate_session_ownership,
-            sanitize_session_id,
-            validate_uuid_format
-        )
-
-        # SECURITY: Validate and sanitize chat_session_id if provided
-        if chat_session_id:
-            try:
-                chat_session_id = sanitize_session_id(chat_session_id)
-                logger.info(f"Session ID validated: {chat_session_id[:8]}...")
-            except ValueError as e:
-                logger.error(f"Invalid session ID: {e}")
-                return finalize({
-                    "statusCode": 400,
-                    "headers": {"Content-Type": "application/json"},
-                    "body": json.dumps({
-                        "error": "Invalid session ID format",
-                        "message": str(e)
-                    })
-                })
-
-
         # Lazy-load SSM client once for token limit checks
         ssm_client = get_ssm_client()
         
@@ -532,6 +457,14 @@ def handler(event, context):
         
         # Get database connection from pool
         connection = connect_to_db()
+
+        # Load System Messages from DB
+        from helpers.config_loader import load_system_messages
+        system_messages = load_system_messages(connection)
+        
+        if not system_messages:
+            logger.warning("No system messages loaded from DB. Using defaults/empty.")
+
         
         # Pre-check: Verify user hasn't exceeded daily token limit before processing
         if chat_session_id and DAILY_TOKEN_LIMIT_PARAM:
@@ -689,19 +622,26 @@ def handler(event, context):
                     else:
                         logger.info("Skipping FAQ cache: Response does not meet quality criteria for caching")
                 else:
-                    # Non-WebSocket API calls are deprecated
-                    logger.warning("Non-WebSocket API call detected - this is deprecated")
-                    response_data = process_query(
+                    logger.info(f"Processing query for session {chat_session_id}")
+                    
+                    # Use the new get_response function (Logic from chat_mistral.py)
+                    from helpers.chat import get_response
+                    
+                    response_data = get_response(
                         query=question,
-                        textbook_id=textbook_id,
-                        retriever=retriever,
-                        connection=connection,
-                        chat_session_id=chat_session_id
+                        knowledge_base_id=KNOWLEDGE_BASE_ID, # Use fetched KB ID
+                        model_arn=BEDROCK_LLM_ID,
+                        bedrock_region=BEDROCK_REGION,
+                        chat_session_id=chat_session_id,
+                        user_id=None, # Extract from token if available, else None
+                        system_messages=system_messages,
+                        db_connection=connection,
+                        # Pass other params if needed
                     )
             except Exception as query_error:
                 logger.error(f"Error processing query: {str(query_error)}", exc_info=True)
                 response_data = {
-                    "response": "I apologize, but I'm experiencing technical difficulties at the moment. Our team has been notified of the issue.",
+                    "response": "I apologize, but I'm experiencing technical difficulties at the moment.",
                     "sources_used": []
                 }
         
@@ -766,22 +706,6 @@ def handler(event, context):
             logger.info(f"Logged question for textbook {textbook_id}")
             
             # Update session name if this is a chat session (only for non-WebSocket requests)
-            session_name = None
-            if chat_session_id and TABLE_NAME_PARAM and not is_websocket:
-                try:
-                    session_name = update_session_name(
-                        table_name=TABLE_NAME_PARAM,
-                        session_id=chat_session_id,
-                        bedrock_llm_id=BEDROCK_LLM_ID,
-                        db_connection=connection
-                    )
-                    if session_name:
-                        logger.info(f"Updated session name to: {session_name}")
-                    else:
-                        logger.info("Session name not updated (may already exist or insufficient history)")
-                except Exception as name_error:
-                    logger.error(f"Error updating session name: {name_error}")
-                    # Don't fail the request if session name update fails
             
         except Exception as db_error:
             connection.rollback()
@@ -797,7 +721,7 @@ def handler(event, context):
             "textbook_id": textbook_id,
             "response": response_data["response"],
             "sources": response_data["sources_used"],
-            "session_name": session_name if not is_websocket else response_data.get("session_name")
+            "session_name": None # Session naming disabled in this version
         }
         
         # Include cache metadata if response was from cache
