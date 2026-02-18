@@ -1226,12 +1226,7 @@ export class ApiGatewayStack extends cdk.Stack {
     // Override the Logical ID
     const cfnTextGenDockerFunc = textGenLambdaFunc_v2.node
       .defaultChild as lambda.CfnFunction;
-    cfnTextGenDockerFunc.overrideLogicalId("TextGenLambdaDockerFunc");
-
-    // Add dependency to ensure image exists in ECR before Lambda is created
-    // cfnTextGenDockerFunc.addDependency(
-    //   textGenImageWaiter.node.defaultChild as cdk.CfnResource
-    // );
+    cfnTextGenDockerFunc.overrideLogicalId("TextGenLambdaV2");
 
     // API Gateway permissions
 
