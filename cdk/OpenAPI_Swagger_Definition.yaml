@@ -2182,6 +2182,8 @@ paths:
         - User
       summary: Generate text response for a chat session
       operationId: generate_text
+      security:
+        - userAuthorizer: []
       parameters:
         - name: chat_session_id
           in: path

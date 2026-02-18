@@ -1120,6 +1120,7 @@ export class ApiGatewayStack extends cdk.Stack {
     );
 
     // Create custom resources to wait for each Docker image
+    /*
     const textGenImageWaiter = new cdk.CustomResource(
       this,
       "TextGenImageWaiter",
@@ -1137,6 +1138,7 @@ export class ApiGatewayStack extends cdk.Stack {
         },
       }
     );
+    */
 
     const practiceMaterialImageWaiter = new cdk.CustomResource(
       this,
@@ -1160,6 +1162,7 @@ export class ApiGatewayStack extends cdk.Stack {
     // Docker-based Lambda Functions
     // ========================================================================
 
+    /*
     const textGenLambdaDockerFunc = new lambda.DockerImageFunction(
       this,
       `${id}-TextGenLambdaDockerFunction`,
@@ -1189,20 +1192,50 @@ export class ApiGatewayStack extends cdk.Stack {
         },
       }
     );
+    */
+
+    const textGenLambdaFunc_v2 = new lambda.Function(
+      this,
+      `${id}-TextGenLambdaFunc_v2`,
+      {
+        runtime: lambda.Runtime.NODEJS_22_X,
+        handler: "index.handler",
+        code: lambda.Code.fromInline(`
+          exports.handler = async (event) => {
+            console.log("Event:", JSON.stringify(event, null, 2));
+            return {
+              statusCode: 200,
+              headers: {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+                "Access-Control-Allow-Methods": "OPTIONS,POST"
+              },
+              body: JSON.stringify({
+                response: "Hello from v2! This is a temporary non-Docker response.",
+                sources: []
+              })
+            };
+          };
+        `),
+        timeout: cdk.Duration.seconds(30),
+        role: lambdaRole,
+      }
+    )
 
     // Override the Logical ID
-    const cfnTextGenDockerFunc = textGenLambdaDockerFunc.node
+    const cfnTextGenDockerFunc = textGenLambdaFunc_v2.node
       .defaultChild as lambda.CfnFunction;
     cfnTextGenDockerFunc.overrideLogicalId("TextGenLambdaDockerFunc");
 
     // Add dependency to ensure image exists in ECR before Lambda is created
-    cfnTextGenDockerFunc.addDependency(
-      textGenImageWaiter.node.defaultChild as cdk.CfnResource
-    );
+    // cfnTextGenDockerFunc.addDependency(
+    //   textGenImageWaiter.node.defaultChild as cdk.CfnResource
+    // );
 
     // API Gateway permissions
 
-    textGenLambdaDockerFunc.addPermission("AllowApiGatewayInvoke", {
+    textGenLambdaFunc_v2.addPermission("AllowApiGatewayInvoke", {
       principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
       action: "lambda:InvokeFunction",
       sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/chat_sessions*`,
@@ -1228,10 +1261,10 @@ export class ApiGatewayStack extends cdk.Stack {
         `arn:aws:bedrock:${this.region}:${this.account}:guardrail/${bedrockGuardrail.attrGuardrailId}`,
       ],
     });
-    textGenLambdaDockerFunc.addToRolePolicy(textGenBedrockPolicyStatement);
+    textGenLambdaFunc_v2.addToRolePolicy(textGenBedrockPolicyStatement);
 
     // Secrets Manager access
-    textGenLambdaDockerFunc.addToRolePolicy(
+    textGenLambdaFunc_v2.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: ["secretsmanager:GetSecretValue"],
@@ -1242,7 +1275,7 @@ export class ApiGatewayStack extends cdk.Stack {
     );
 
     // SSM Parameter access
-    textGenLambdaDockerFunc.addToRolePolicy(
+    textGenLambdaFunc_v2.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: ["ssm:GetParameter"],
@@ -1258,7 +1291,7 @@ export class ApiGatewayStack extends cdk.Stack {
     );
 
     /* AppSync permissions
-    textGenLambdaDockerFunc.addToRolePolicy(
+    textGenLambdaFunc_v2.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: [
@@ -1276,7 +1309,7 @@ export class ApiGatewayStack extends cdk.Stack {
     */
 
     /* Additional AppSync permission for mutations
-    textGenLambdaDockerFunc.addToRolePolicy(
+    textGenLambdaFunc_v2.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: ["appsync:PostToConnection"],
@@ -1677,7 +1710,7 @@ export class ApiGatewayStack extends cdk.Stack {
       code: lambda.Code.fromAsset("lambda/websocket"),
       timeout: cdk.Duration.seconds(30),
       environment: {
-        TEXT_GEN_FUNCTION_NAME: textGenLambdaDockerFunc.functionName,
+        TEXT_GEN_FUNCTION_NAME: textGenLambdaFunc_v2.functionName,
         // PRACTICE_MATERIAL_FUNCTION_NAME added after function definition
       },
       functionName: `${id}-DefaultFunction`,
@@ -1691,7 +1724,7 @@ export class ApiGatewayStack extends cdk.Stack {
       ],
     });
 
-    textGenLambdaDockerFunc.addToRolePolicy(wsPolicy);
+    textGenLambdaFunc_v2.addToRolePolicy(wsPolicy);
     connectFunction.addToRolePolicy(wsPolicy);
     disconnectFunction.addToRolePolicy(wsPolicy);
     defaultFunction.addToRolePolicy(wsPolicy);
@@ -1699,7 +1732,7 @@ export class ApiGatewayStack extends cdk.Stack {
 
     jwtSecret.grantRead(connectFunction);
     // Grant the default function permission to invoke the text generation function
-    textGenLambdaDockerFunc.grantInvoke(defaultFunction);
+    textGenLambdaFunc_v2.grantInvoke(defaultFunction);
     // practiceMaterialDockerFunc.grantInvoke added after function definition
 
     // Routes
@@ -1761,7 +1794,7 @@ export class ApiGatewayStack extends cdk.Stack {
     this.wsStage.node.addDependency(apiGatewayAccount);
 
     // Add environment variable to text generation function (include stage name)
-    textGenLambdaDockerFunc.addEnvironment(
+    textGenLambdaFunc_v2.addEnvironment(
       "WEBSOCKET_API_ENDPOINT",
       `${this.webSocketApi.apiEndpoint}/${this.wsStage.stageName}`
     );

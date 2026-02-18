@@ -392,6 +392,8 @@ export default function AIChatPage() {
       );
       const { token } = await tokenResponse.json();
 
+      console.log("Token: ", token);
+
       const response = await fetch(
         `${import.meta.env.VITE_API_ENDPOINT
         }/chat_sessions/${activeChatSessionId}/text_generation`,
@@ -412,6 +414,7 @@ export default function AIChatPage() {
       }
 
       const data = await response.json();
+      console.log("Data: ", data);
 
       // Update the bot message with the complete response
       setMessages((prev) =>
