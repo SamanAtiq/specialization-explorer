@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Bot, ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Bot, ChevronLeft, ChevronRight, CheckCircle2, Save } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -35,7 +35,11 @@ type Props = {
   type: SystemMessageType;
   title: string;
   description?: string;
-  versions: SystemMessageVersion[]; // active should be first (we'll also sort defensively)
+  versions: SystemMessageVersion[];
+  adminEmail?: string | null;
+
+  // TODO: parent updates state + later wire this to POST
+  onCreateVersion: (type: SystemMessageType, newVersion: SystemMessageVersion) => void;
 };
 
 function formatDate(iso?: string) {
@@ -45,10 +49,18 @@ function formatDate(iso?: string) {
   return d.toLocaleString();
 }
 
+function nextVersionNumber(list: SystemMessageVersion[]) {
+  const maxV = list.reduce((m, v) => Math.max(m, v.version ?? 0), 0);
+  return maxV + 1;
+}
+
 export default function SystemMessageEditor({
+  type,
   title,
   description,
   versions,
+  adminEmail,
+  onCreateVersion,
 }: Props) {
   const sorted = useMemo(() => {
     // Active first, then version desc, then created_at desc
@@ -64,8 +76,51 @@ export default function SystemMessageEditor({
   const [idx, setIdx] = useState(0);
   const current = sorted[idx];
 
+  // draft content for the textarea
+  const [draft, setDraft] = useState(current?.content ?? "");
+  const [isDirty, setIsDirty] = useState(false);
+
+  // whenever you navigate versions, update draft to match that version
+  useEffect(() => {
+    setDraft(current?.content ?? "");
+    setIsDirty(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idx, current?.id]);
+
   const canPrev = idx > 0;
   const canNext = idx < sorted.length - 1;
+
+  // Only allow edits when viewing the active version
+  const canEdit = !!current?.is_active;
+
+  const handleSave = async () => {
+    const trimmed = (draft ?? "").trim();
+
+    if (!trimmed) return;
+    if (!adminEmail) {
+      // TODO: real POST this should be required
+      console.warn("Missing adminEmail; saving locally without created_by_email.");
+    }
+
+    // TODO:
+    // POST /admin/system-messages
+    // body: { type, content: trimmed, created_by_email: adminEmail }
+    const newVersion: SystemMessageVersion = {
+      id: `local-${type}-v${nextVersionNumber(sorted)}-${Date.now()}`,
+      type,
+      content: trimmed,
+      version: nextVersionNumber(sorted),
+      is_active: true,
+      created_by_email: adminEmail ?? undefined,
+      created_at: new Date().toISOString(),
+    };
+
+    onCreateVersion(type, newVersion);
+
+    // after parent updates, the active version should sort to index 0
+    setIdx(0);
+    setIsDirty(false);
+  };
 
   return (
     <Card className="border-gray-200 shadow-sm w-full">
@@ -78,7 +133,7 @@ export default function SystemMessageEditor({
           <CardDescription>{description}</CardDescription>
         ) : null}
 
-        {/* Horizontal version scroller (button-based for now) */}
+        {/* Horizontal version scroller */}
         <div className="flex items-center justify-between pt-2">
           <div className="flex items-center gap-2">
             <Button
@@ -164,18 +219,44 @@ export default function SystemMessageEditor({
           </div>
         </div>
 
-        {/* Content preview (read-only for now) */}
+        {/* Content editor */}
         <div className="space-y-2">
-          <Label>Message content (read-only for now)</Label>
+          <Label>Message content</Label>
           <textarea
-            readOnly
-            value={current?.content ?? ""}
-            className="flex min-h-[240px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background font-mono"
+            value={draft}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              setIsDirty(true);
+            }}
+            readOnly={!canEdit}
+            className={[
+              "flex min-h-[240px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background font-mono",
+              !canEdit ? "opacity-70 cursor-not-allowed" : "",
+            ].join(" ")}
           />
-          <p className="text-xs text-gray-500">
-            Editing / creating new versions and switching active version will be
-            added later
-          </p>
+
+          {!canEdit ? (
+            <p className="text-xs text-gray-500">
+              Only the active version can be edited. To change history, create a new version via Save.
+            </p>
+          ) : (
+            <p className="text-xs text-gray-500">
+              Saving creates a new version and makes it active (rollback-safe).
+            </p>
+          )}
+        </div>
+
+        {/* Save button */}
+        <div className="pt-2">
+          <Button
+            type="button"
+            onClick={handleSave}
+            disabled={!canEdit || !isDirty || !(draft ?? "").trim()}
+            className="bg-[#2c5f7c] hover:bg-[#234d63]"
+          >
+            <Save className="mr-2 h-4 w-4" />
+            Save New Version
+          </Button>
         </div>
       </CardContent>
     </Card>

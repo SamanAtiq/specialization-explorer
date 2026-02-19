@@ -329,6 +329,20 @@ export default function SystemSettings() {
     }
   };
 
+  const handleCreateSystemMessageVersion = (
+    type: SystemMessageType,
+    newVersion: SystemMessageVersion
+  ) => {
+    setMessages((prev) => {
+      const existing = prev[type] ?? [];
+      const deactivated = existing.map((v) => ({ ...v, is_active: false }));
+      return {
+        ...prev,
+        [type]: [newVersion, ...deactivated],
+      };
+    });
+  };
+
   useEffect(() => {
     fetchAdminCredentials();
     fetchSystemSettings();
@@ -521,6 +535,8 @@ export default function SystemSettings() {
               title={MESSAGE_META[t].title}
               description={MESSAGE_META[t].description}
               versions={messages[t] ?? []}
+              adminEmail={adminEmail}
+              onCreateVersion={handleCreateSystemMessageVersion}
             />
           ))}
         </div>
