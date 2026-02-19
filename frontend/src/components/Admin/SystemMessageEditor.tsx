@@ -27,7 +27,7 @@ export type SystemMessageVersion = {
   content: string;
   version: number;
   is_active: boolean;
-  created_by_email?: string | null; // will be filled later by backend join
+  created_by_email?: string | null;
   created_at?: string;
 };
 
@@ -38,8 +38,8 @@ type Props = {
   versions: SystemMessageVersion[];
   adminEmail?: string | null;
 
-  // TODO: parent updates state + later wire this to POST
   onCreateVersion: (type: SystemMessageType, newVersion: SystemMessageVersion) => void;
+  onSave: (type: SystemMessageType, content: string) => Promise<SystemMessageVersion>;
 };
 
 function formatDate(iso?: string) {
@@ -61,6 +61,7 @@ export default function SystemMessageEditor({
   versions,
   adminEmail,
   onCreateVersion,
+  onSave,
 }: Props) {
   const sorted = useMemo(() => {
     // Active first, then version desc, then created_at desc
@@ -80,10 +81,13 @@ export default function SystemMessageEditor({
   const [draft, setDraft] = useState(current?.content ?? "");
   const [isDirty, setIsDirty] = useState(false);
 
-  // whenever you navigate versions, update draft to match that version
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
   useEffect(() => {
     setDraft(current?.content ?? "");
     setIsDirty(false);
+    setSaveError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx, current?.id]);
 
@@ -97,29 +101,39 @@ export default function SystemMessageEditor({
     const trimmed = (draft ?? "").trim();
 
     if (!trimmed) return;
-    if (!adminEmail) {
-      // TODO: real POST this should be required
-      console.warn("Missing adminEmail; saving locally without created_by_email.");
+
+    setSaving(true);
+    setSaveError(null);
+
+    try {
+      // should return the newly created active version
+      const created = await onSave(type, trimmed);
+
+      onCreateVersion(type, created);
+      setIdx(0);
+      setIsDirty(false);
+    } catch (e) {
+      console.error(e);
+
+      // fallback
+      const localVersion: SystemMessageVersion = {
+        id: `local-${type}-v${nextVersionNumber(sorted)}-${Date.now()}`,
+        type,
+        content: trimmed,
+        version: nextVersionNumber(sorted),
+        is_active: true,
+        created_by_email: adminEmail ?? undefined,
+        created_at: new Date().toISOString(),
+      };
+
+      onCreateVersion(type, localVersion);
+      setIdx(0);
+      setIsDirty(false);
+
+      setSaveError("Saved locally (backend save failed).");
+    } finally {
+      setSaving(false);
     }
-
-    // TODO:
-    // POST /admin/system-messages
-    // body: { type, content: trimmed, created_by_email: adminEmail }
-    const newVersion: SystemMessageVersion = {
-      id: `local-${type}-v${nextVersionNumber(sorted)}-${Date.now()}`,
-      type,
-      content: trimmed,
-      version: nextVersionNumber(sorted),
-      is_active: true,
-      created_by_email: adminEmail ?? undefined,
-      created_at: new Date().toISOString(),
-    };
-
-    onCreateVersion(type, newVersion);
-
-    // after parent updates, the active version should sort to index 0
-    setIdx(0);
-    setIsDirty(false);
   };
 
   return (
@@ -235,6 +249,12 @@ export default function SystemMessageEditor({
             ].join(" ")}
           />
 
+          {saveError ? (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+              {saveError}
+            </p>
+          ) : null}
+
           {!canEdit ? (
             <p className="text-xs text-gray-500">
               Only the active version can be edited. To change history, create a new version via Save.
@@ -251,11 +271,11 @@ export default function SystemMessageEditor({
           <Button
             type="button"
             onClick={handleSave}
-            disabled={!canEdit || !isDirty || !(draft ?? "").trim()}
+            disabled={saving || !canEdit || !isDirty || !(draft ?? "").trim()}
             className="bg-[#2c5f7c] hover:bg-[#234d63]"
           >
             <Save className="mr-2 h-4 w-4" />
-            Save New Version
+            {saving ? "Saving..." : "Save New Version"}
           </Button>
         </div>
       </CardContent>

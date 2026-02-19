@@ -556,6 +556,103 @@ paths:
         httpMethod: POST
         type: aws_proxy
 
+  /admin/system-messages/{system_message_type}:
+    <<: *commonOptions
+    post:
+      tags:
+        - Admin
+      summary: Create a new version of a system message and set it active
+      operationId: create_admin_system_message_version
+      security:
+        - adminAuthorizer: []
+      parameters:
+        - name: system_message_type
+          in: path
+          required: true
+          description: The system message type to create a new version for
+          schema:
+            type: string
+            enum:
+              - disclaimer
+              - guardrails
+              - system_role
+              - system_checklist
+              - system_instructions
+              - initial_prompt
+              - detective_phase_prompt
+              - suggestion_phase_prompt
+              - welcome_message
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+                - adminEmail
+              properties:
+                content:
+                  type: string
+                  description: The full message content for the new version
+                  example: "AI can make mistakes. Check important info."
+                adminEmail:
+                  type: string
+                  description: Email of the admin creating this new version (used to populate created_by)
+                  example: "admin@example.com"
+      responses:
+        "200":
+          description: Created a new system message version (active)
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - id
+                  - type
+                  - content
+                  - version
+                  - is_active
+                  - created_at
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  type:
+                    type: string
+                    description: System message type
+                  content:
+                    type: string
+                  version:
+                    type: integer
+                    description: New version number (increments per type)
+                  is_active:
+                    type: boolean
+                    description: Whether this version is active (should be true)
+                  created_by_email:
+                    type: string
+                    description: Email of the admin who created it (empty if unavailable)
+                    example: "admin@example.com"
+                  created_at:
+                    type: string
+                    format: date-time
+        "400":
+          description: Bad Request - Invalid type or missing/invalid content/adminEmail
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden - Not an admin
+        "404":
+          description: Admin user not found for email
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${adminFunction.Arn}/invocations
+        passthroughBehavior: "when_no_match"
+        httpMethod: POST
+        type: aws_proxy
+
   # DEPRECATED since no longer needed in new project --> will delete later
   /admin/settings/token-limit:
     <<: *commonOptions

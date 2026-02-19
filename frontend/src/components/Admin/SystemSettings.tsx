@@ -343,6 +343,35 @@ export default function SystemSettings() {
     });
   };
 
+  const saveSystemMessage = async (
+    type: SystemMessageType,
+    content: string
+  ): Promise<SystemMessageVersion> => {
+    const session = await AuthService.getAuthSession(true);
+    const token = session.tokens.idToken;
+
+    if (!adminEmail) throw new Error("Missing adminEmail");
+
+    const res = await fetch(
+      `${import.meta.env.VITE_API_ENDPOINT}/admin/system-messages/${type}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: token,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ content, adminEmail }),
+      }
+    );
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Failed to save system message (${res.status}): ${text}`);
+    }
+
+    return (await res.json()) as SystemMessageVersion;
+  };
+
   useEffect(() => {
     fetchAdminCredentials();
     fetchSystemSettings();
@@ -537,6 +566,7 @@ export default function SystemSettings() {
               versions={messages[t] ?? []}
               adminEmail={adminEmail}
               onCreateVersion={handleCreateSystemMessageVersion}
+              onSave={saveSystemMessage}
             />
           ))}
         </div>

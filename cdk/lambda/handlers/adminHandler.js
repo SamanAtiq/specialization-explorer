@@ -217,6 +217,137 @@ exports.handler = async (event) => {
         break;
       }
 
+      // POST /admin/system-messages/{system_message_type} - Create new system message version + set active
+      case "POST /admin/system-messages/{system_message_type}": {
+        let body;
+        try {
+          body = parseBody(event.body);
+        } catch (error) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: error.message });
+          break;
+        }
+
+        const messageType = event?.pathParameters?.system_message_type;
+
+        const allowedTypes = new Set([
+          "disclaimer",
+          "guardrails",
+          "system_role",
+          "system_checklist",
+          "system_instructions",
+          "initial_prompt",
+          "detective_phase_prompt",
+          "suggestion_phase_prompt",
+          "welcome_message",
+        ]);
+
+        // Validate system_message_type
+        if (!messageType || typeof messageType !== "string" || !allowedTypes.has(messageType)) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({
+            error: "Invalid system_message_type",
+            allowed: Array.from(allowedTypes),
+          });
+          break;
+        }
+
+        // Validate content
+        const content = typeof body?.content === "string" ? body.content.trim() : "";
+        if (!content) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "content is required" });
+          break;
+        }
+
+        // Validate adminEmail
+        const adminEmail = typeof body?.adminEmail === "string" ? body.adminEmail.trim() : "";
+        if (!adminEmail) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "adminEmail is required" });
+          break;
+        }
+
+        // Find admin user id (ensure role is admin)
+        const adminRows = await sqlConnection`
+          SELECT id, email, role
+          FROM users
+          WHERE email = ${adminEmail}
+          LIMIT 1
+        `;
+
+        if (adminRows.length === 0) {
+          response.statusCode = 404;
+          response.body = JSON.stringify({ error: "Admin user not found for email" });
+          break;
+        }
+
+        if (adminRows[0].role !== "admin") {
+          response.statusCode = 403;
+          response.body = JSON.stringify({ error: "User is not an admin" });
+          break;
+        }
+
+        const createdByUserId = adminRows[0].id;
+        
+        // Create new version, make it active, deactivate old
+        try {
+          const created = await sqlConnection.begin(async (tx) => {
+            const [{ next_version }] = await tx`
+              SELECT COALESCE(MAX(version), 0) + 1 AS next_version
+              FROM system_messages
+              WHERE type = ${messageType}::system_message_type
+            `;
+
+            await tx`
+              UPDATE system_messages
+              SET is_active = false
+              WHERE type = ${messageType}::system_message_type
+                AND is_active = true
+            `;
+
+            const inserted = await tx`
+              INSERT INTO system_messages (type, content, version, is_active, created_by, created_at)
+              VALUES (
+                ${messageType}::system_message_type,
+                ${content},
+                ${next_version},
+                true,
+                ${createdByUserId},
+                NOW()
+              )
+              RETURNING id
+            `;
+
+            const out = await tx`
+              SELECT
+                sm.id,
+                sm.type,
+                sm.content,
+                sm.version,
+                sm.is_active,
+                u.email AS created_by_email,
+                sm.created_at
+              FROM system_messages sm
+              LEFT JOIN users u ON u.id = sm.created_by
+              WHERE sm.id = ${inserted[0].id}
+              LIMIT 1
+            `;
+
+            return out[0];
+          });
+
+          response.statusCode = 200;
+          response.body = JSON.stringify(created);
+          break;
+        } catch (err) {
+          console.error("POST /admin/system-messages/{system_message_type} failed:", err);
+          response.statusCode = 500;
+          response.body = JSON.stringify({ error: "Failed to create system message version" });
+          break;
+        }
+      }
+
       // GET /admin/textbooks - Get all textbooks with user and question counts
       case "GET /admin/textbooks":
         const adminLimit = Math.min(
