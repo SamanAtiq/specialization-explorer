@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { useSearchParams } from "react-router";
+
 import AIChatMessage from "@/components/ChatInterface/AIChatMessage";
 import UserChatMessage from "@/components/ChatInterface/UserChatMessage";
 import { useView } from "@/providers/view";
@@ -8,11 +8,19 @@ import { useWebSocket } from "@/hooks/useWebSocket";
 import type { Message } from "@/types/Chat";
 import { useUser } from "@/providers/user";
 
+const WELCOME_PROMPT = `Hello! Please act as the Specialization Explorer.
+1. Introduce yourself briefly.
+2. Ask the student these 1 of these starter questions, and use some variation of these in the later responses to complete the checklist:
+   - What are your academic interests?
+   - Which course or department do you like most at UBC Science?
+   - Do you want to pursue research or enter industry after graduation?
+3. Be friendly and inviting.`;
+
 export default function AIChatPage() {
-  // URL search params for pre-filled questions (from FAQ page)
-  const [searchParams, setSearchParams] = useSearchParams();
+
 
   // State
+  const hasStartedRef = useRef(false);
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [initialMessageLoadTime, setInitialMessageLoadTime] = useState<
@@ -295,7 +303,11 @@ export default function AIChatPage() {
 
         const data: { messages: ChatMessageRow[] } = await response.json();
 
-        const chatMessages: Message[] = (data.messages || []).map((m) => ({
+        const rawMessages = data.messages || [];
+        // Optimized check: Skip first message ONLY if it matches the system prompt
+        const startIndex = (rawMessages.length > 0 && rawMessages[0].content === WELCOME_PROMPT) ? 1 : 0;
+
+        const chatMessages: Message[] = rawMessages.slice(startIndex).map((m) => ({
           id: m.id,
           sender: m.sender === "AI" ? ("bot" as const) : ("user" as const),
           text: m.content,
@@ -316,6 +328,115 @@ export default function AIChatPage() {
 
     loadChatHistory();
   }, [activeChatSessionId, userId]);
+
+  const startConversation = useCallback(async () => {
+    if (hasStartedRef.current) return;
+    if (!activeChatSessionId) return;
+
+    hasStartedRef.current = true;
+
+    // Create bot message placeholder for streaming
+    const botMsg: Message = {
+      id: `${Date.now() + 1}-${Math.random().toString(36).slice(2, 9)}`,
+      sender: "bot",
+      text: "",
+      sources_used: [],
+      time: Date.now() + 1,
+      isTyping: true, // Start with typing indicator
+    };
+
+    // Add ONLY bot message (no user message)
+    setMessages((m) => [...m, botMsg]);
+    setStreamingMessageId(botMsg.id);
+    setIsStreaming(true);
+
+    const promptText = WELCOME_PROMPT;
+
+    // Try WebSocket streaming first, fallback to HTTP if not connected
+    if (isConnected && webSocketUrl) {
+      console.log("[WebSocket] Starting conversation via WebSocket");
+      const success = sendWebSocketMessage({
+        action: "generate_text",
+        query: promptText,
+        chat_session_id: activeChatSessionId,
+        user_id: userId,
+        is_intro_message: true
+      });
+
+      if (!success) {
+        console.warn("[WebSocket] Start conversation failed. Attempting reconnect...");
+        forceReconnect();
+      }
+    } else {
+      console.log("[WebSocket] Fallback: Starting conversation via HTTP API...");
+
+      try {
+        const tokenResponse = await fetch(`${import.meta.env.VITE_API_ENDPOINT}/user/publicToken`);
+        const { token } = await tokenResponse.json();
+
+        const response = await fetch(
+          `${import.meta.env.VITE_API_ENDPOINT}/chat_sessions/${activeChatSessionId}/text_generation`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              query: promptText,
+              chat_session_id: activeChatSessionId,
+              user_id: userId,
+              is_intro_message: true
+            }),
+          }
+        );
+
+        if (!response.ok) throw new Error("Failed to generate response");
+
+        const data = await response.json();
+
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === botMsg.id
+              ? {
+                ...msg,
+                text: data.response || "Sorry, I couldn't generate a response.",
+                sources_used: data.sources || [],
+                isTyping: false,
+              }
+              : msg
+          )
+        );
+
+        if (data.session_name && activeChatSessionId) {
+          updateChatSessionName(activeChatSessionId, data.session_name);
+        }
+      } catch (error) {
+        console.error("Error starting conversation:", error);
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === botMsg.id
+              ? {
+                ...msg,
+                text: "Sorry, there was an error processing your request.",
+                isTyping: false,
+              }
+              : msg
+          )
+        );
+      } finally {
+        setIsStreaming(false);
+        setStreamingMessageId(null);
+      }
+    }
+  }, [activeChatSessionId, userId, isConnected, webSocketUrl, sendWebSocketMessage, forceReconnect, updateChatSessionName]);
+
+  // Auto-start conversation if history is empty
+  useEffect(() => {
+    if (!isLoadingHistory && messages.length === 0 && activeChatSessionId && !hasStartedRef.current) {
+      startConversation();
+    }
+  }, [isLoadingHistory, messages.length, activeChatSessionId, startConversation]);
 
   async function sendMessage() {
     let text = message.trim();
@@ -353,11 +474,13 @@ export default function AIChatPage() {
         action: "generate_text",
         query: text,
         chat_session_id: activeChatSessionId,
+        user_id: userId,
       });
       const success = sendWebSocketMessage({
         action: "generate_text",
         query: text,
         chat_session_id: activeChatSessionId,
+        user_id: userId,
       });
 
       if (success) {
@@ -391,7 +514,6 @@ export default function AIChatPage() {
         `${import.meta.env.VITE_API_ENDPOINT}/user/publicToken`
       );
       const { token } = await tokenResponse.json();
-
       const response = await fetch(
         `${import.meta.env.VITE_API_ENDPOINT
         }/chat_sessions/${activeChatSessionId}/text_generation`,
@@ -403,6 +525,8 @@ export default function AIChatPage() {
           },
           body: JSON.stringify({
             query: text,
+            chat_session_id: activeChatSessionId,
+            user_id: userId,
           }),
         }
       );
@@ -412,6 +536,7 @@ export default function AIChatPage() {
       }
 
       const data = await response.json();
+      console.log("Data: ", data);
 
       // Update the bot message with the complete response
       setMessages((prev) =>
@@ -451,56 +576,7 @@ export default function AIChatPage() {
     }
   }
 
-  // Handle pre-filled question from URL (e.g., from FAQ page)
-  useEffect(() => {
-    const question = searchParams.get("question");
-    const answer = searchParams.get("answer");
 
-    // Wait for history to finish loading before processing FAQ params
-    if (
-      question &&
-      activeChatSessionId &&
-      !isStreaming &&
-      !isLoadingHistory
-    ) {
-      // If both question and answer are provided (from FAQ), display them directly
-      if (answer) {
-        const userMsg: Message = {
-          id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-          sender: "user",
-          text: question,
-          time: Date.now(),
-        };
-
-        const botMsg: Message = {
-          id: `${Date.now() + 1}-${Math.random().toString(36).slice(2, 9)}`,
-          sender: "bot",
-          text: answer,
-          sources_used: [],
-          time: Date.now() + 1,
-        };
-
-        // Append to existing messages (history)
-        setMessages((prev) => [...prev, userMsg, botMsg]);
-        setSearchParams({});
-      } else {
-        // Only question provided, send it to LLM
-        setMessage(question);
-        setSearchParams({});
-
-        setTimeout(() => {
-          if (question.trim()) {
-            sendMessage();
-          }
-        }, 100);
-      }
-    }
-  }, [
-    searchParams,
-    activeChatSessionId,
-    isStreaming,
-    isLoadingHistory,
-  ]);
 
   function messageFormatter(message: Message) {
     if (message.sender === "user") {
