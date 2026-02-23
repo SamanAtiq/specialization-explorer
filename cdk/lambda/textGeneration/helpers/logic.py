@@ -1,7 +1,7 @@
 
 from typing import Tuple
 import helpers.config as config
-from helpers.db import get_exchange_count
+from helpers.crud import get_exchange_count
 
 def get_current_prompt(chat_session_id: str, db_connection) -> Tuple[str, int]:
     """

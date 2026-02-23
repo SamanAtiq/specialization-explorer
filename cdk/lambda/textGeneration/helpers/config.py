@@ -1,6 +1,6 @@
 import logging
 import boto3
-from helpers.db import fetch_system_config
+from helpers.crud import fetch_system_config
 
 logger = logging.getLogger(__name__)
 

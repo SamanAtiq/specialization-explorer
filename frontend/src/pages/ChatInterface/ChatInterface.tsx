@@ -497,11 +497,15 @@ export default function AIChatPage() {
     if (isConnected && webSocketUrl) {
       console.log("[WebSocket] Sending message via WebSocket:", {
         action: "generate_text",
-        query: text
+        query: text,
+        chat_session_id: activeChatSessionId,
+        user_id: userId,
       });
       const success = sendWebSocketMessage({
         action: "generate_text",
-        query: text
+        query: text,
+        chat_session_id: activeChatSessionId,
+        user_id: userId,
       });
 
       if (success) {

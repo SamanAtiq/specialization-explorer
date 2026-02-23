@@ -2,7 +2,7 @@
 import boto3
 import logging
 from typing import Dict, Any, Optional, List, Tuple
-from helpers.db import (
+from helpers.crud import (
     fetch_recent_messages, ensure_session_exists, insert_message, update_last_active_session
 )
 from helpers.logic import get_current_prompt

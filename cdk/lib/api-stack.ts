@@ -1162,49 +1162,13 @@ export class ApiGatewayStack extends cdk.Stack {
       }
     );
 
-    // ========================================================================
-    // Docker-based Lambda Functions
-    // ========================================================================
-
-    /*
-    const textGenLambdaDockerFunc = new lambda.DockerImageFunction(
+    const lambdaTextGen = new lambda.Function(
       this,
-      `${id}-TextGenLambdaDockerFunction`,
-      {
-        code: lambda.DockerImageCode.fromEcr(
-          props.ecrRepositories["textGeneration"],
-          {
-            tagOrDigest: "latest",
-          }
-        ),
-        memorySize: 1024,
-        timeout: cdk.Duration.seconds(300),
-        vpc: vpcStack.vpc,
-        functionName: `${id}-TextGenLambdaDockerFunction`,
-        environment: {
-          SM_DB_CREDENTIALS: db.secretPathUser.secretName,
-          RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
-          REGION: this.region,
-          BEDROCK_LLM_PARAM: bedrockLLMParameter.parameterName,
-          EMBEDDING_MODEL_PARAM: embeddingModelParameter.parameterName,
-          BEDROCK_REGION_PARAM: bedrockRegionParameter.parameterName,
-          GUARDRAIL_ID_PARAM: guardrailParameter.parameterName,
-          DAILY_TOKEN_LIMIT_PARAM: dailyTokenLimitParameter.parameterName,
-          //MESSAGE_LIMIT_PARAM: messageLimitParameter.parameterName,
-          //APPSYNC_ENDPOINT: this.eventApi.graphqlUrl,
-          //APPSYNC_API_ID: this.eventApi.apiId,
-        },
-      }
-    );
-    */
-
-    const lambdaTextGenV2 = new lambda.Function(
-      this,
-      `${id}-lambdaTextGenV2`,
+      `${id}-lambdaTextGen`,
       {
         runtime: lambda.Runtime.PYTHON_3_12,
-        handler: "text_gen_v2.handler",
-        code: lambda.Code.fromAsset("lambda/textGeneration_v2"),
+        handler: "main.handler",
+        code: lambda.Code.fromAsset("lambda/textGeneration"),
         timeout: cdk.Duration.seconds(60),
         role: lambdaRole,
         layers: [psycopgLayer],
@@ -1218,13 +1182,13 @@ export class ApiGatewayStack extends cdk.Stack {
     )
 
     // Override the Logical ID
-    const cfnLambdaTextGenV2 = lambdaTextGenV2.node
+    const cfnlambdaTextGen = lambdaTextGen.node
       .defaultChild as lambda.CfnFunction;
-    cfnLambdaTextGenV2.overrideLogicalId("lambdaTextGenV2");
+    cfnlambdaTextGen.overrideLogicalId("lambdaTextGen");
 
     // API Gateway permissions
 
-    lambdaTextGenV2.addPermission("AllowApiGatewayInvoke", {
+    lambdaTextGen.addPermission("AllowApiGatewayInvoke", {
       principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
       action: "lambda:InvokeFunction",
       sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/chat_sessions*`,
@@ -1257,10 +1221,10 @@ export class ApiGatewayStack extends cdk.Stack {
         `arn:aws:bedrock:${this.region}:${this.account}:guardrail/${bedrockGuardrail.attrGuardrailId}`,
       ],
     });
-    lambdaTextGenV2.addToRolePolicy(textGenBedrockPolicyStatement);
+    lambdaTextGen.addToRolePolicy(textGenBedrockPolicyStatement);
 
     // Secrets Manager access
-    lambdaTextGenV2.addToRolePolicy(
+    lambdaTextGen.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: ["secretsmanager:GetSecretValue"],
@@ -1271,7 +1235,7 @@ export class ApiGatewayStack extends cdk.Stack {
     );
 
     // SSM Parameter access
-    lambdaTextGenV2.addToRolePolicy(
+    lambdaTextGen.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: ["ssm:GetParameter"],
@@ -1286,33 +1250,6 @@ export class ApiGatewayStack extends cdk.Stack {
       })
     );
 
-    /* AppSync permissions
-    textGenLambdaFunc_v2.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: [
-          "appsync:GraphQL",
-          "appsync:GetGraphqlApi",
-          "appsync:ListGraphqlApis",
-        ],
-        resources: [
-          `${ this.eventApi.arn }/*`,
-          `${this.eventApi.arn}`,
-          this.eventApi.arn,
-        ],
-      })
-    );
-    */
-
-    /* Additional AppSync permission for mutations
-    textGenLambdaFunc_v2.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["appsync:PostToConnection"],
-        resources: [`${this.eventApi.arn}`],
-      })
-    );
-    */
 
     const lambdaUserFunction = new lambda.Function(this, `${id}-userFunction`, {
       runtime: lambda.Runtime.NODEJS_22_X,
@@ -1706,7 +1643,7 @@ export class ApiGatewayStack extends cdk.Stack {
       code: lambda.Code.fromAsset("lambda/websocket"),
       timeout: cdk.Duration.seconds(30),
       environment: {
-        TEXT_GEN_FUNCTION_NAME: lambdaTextGenV2.functionName,
+        TEXT_GEN_FUNCTION_NAME: lambdaTextGen.functionName,
         // PRACTICE_MATERIAL_FUNCTION_NAME added after function definition
       },
       functionName: `${id}-DefaultFunction`,
@@ -1720,7 +1657,7 @@ export class ApiGatewayStack extends cdk.Stack {
       ],
     });
 
-    lambdaTextGenV2.addToRolePolicy(wsPolicy);
+    lambdaTextGen.addToRolePolicy(wsPolicy);
     connectFunction.addToRolePolicy(wsPolicy);
     disconnectFunction.addToRolePolicy(wsPolicy);
     defaultFunction.addToRolePolicy(wsPolicy);
@@ -1728,7 +1665,7 @@ export class ApiGatewayStack extends cdk.Stack {
 
     jwtSecret.grantRead(connectFunction);
     // Grant the default function permission to invoke the text generation function
-    lambdaTextGenV2.grantInvoke(defaultFunction);
+    lambdaTextGen.grantInvoke(defaultFunction);
     // practiceMaterialDockerFunc.grantInvoke added after function definition
 
     // Routes
@@ -1790,7 +1727,7 @@ export class ApiGatewayStack extends cdk.Stack {
     this.wsStage.node.addDependency(apiGatewayAccount);
 
     // Add environment variable to text generation function (include stage name)
-    lambdaTextGenV2.addEnvironment(
+    lambdaTextGen.addEnvironment(
       "WEBSOCKET_API_ENDPOINT",
       `${this.webSocketApi.apiEndpoint}/${this.wsStage.stageName}`
     );
