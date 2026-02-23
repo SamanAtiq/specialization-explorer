@@ -1249,6 +1249,8 @@ export class ApiGatewayStack extends cdk.Stack {
         `arn:aws:bedrock:us-east-1::foundation-model/cohere.embed-v4:0`,
         // Mistral Large
         `arn:aws:bedrock:${this.region}::foundation-model/mistral.mistral-large-2402-v1:0`,
+        // Claude Haiku 3 (Direct Foundation Models)
+        `arn:aws:bedrock:${this.region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0`,
         // Knowledge Base
         `arn:aws:bedrock:${this.region}:${this.account}:knowledge-base/*`,
         // Guardrail
