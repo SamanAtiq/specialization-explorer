@@ -1,5 +1,5 @@
-
 import logging
+import boto3
 from helpers.db import fetch_system_config
 
 logger = logging.getLogger(__name__)
@@ -11,7 +11,7 @@ _CONFIG_LOADED = False
 # DEFAULT VALUES (Fallbacks)
 # ------------------------------------------------------------------
 
-KB_ID = "TB6DRFKKIF"
+KB_ID = None
 MODEL_ARN = "mistral.mistral-large-2402-v1:0"
 BEDROCK_REGION = "ca-central-1"
 
@@ -66,11 +66,24 @@ def load_config(db_connection):
     global _CONFIG_LOADED
     global MAX_MESSAGES_PER_SESSION, MIN_EXCHANGES_BEFORE_SUGGEST, MAX_CHARACTERS_PER_USER_MESSAGE, MAX_CHARACTERS_PER_AI_MESSAGE, TEMPERATURE, TOP_P
     global GUARDRAILS, ROLE, CHECKLIST, INSTRUCTIONS, DETECTIVE_PHASE_PROMPT, SUGGESTION_PHASE_PROMPT, INITIAL_PROMPT
+    global KB_ID
 
     if _CONFIG_LOADED:
         return
 
-    logger.info("Loading system config from DB...")
+    logger.info("Loading system config from DB and Secrets Manager...")
+    
+    # Load Knowledge Base ID from Secrets Manager
+    if not KB_ID:
+        try:
+            client = boto3.client('secretsmanager')
+            response = client.get_secret_value(SecretId='SpecEx/KnowledgeBase/Id')
+            KB_ID = response.get('SecretString')
+            logger.info("Successfully loaded KB_ID from Secrets Manager.")
+        except Exception as e:
+            logger.error(f"Failed to load KB_ID from Secrets Manager: {e}")
+            raise
+
     data = fetch_system_config(db_connection)
 
     # 1. Update System Settings
@@ -99,4 +112,5 @@ def load_config(db_connection):
         # This aligns with user request.
 
     _CONFIG_LOADED = True
+
     logger.info("System config loaded successfully.")

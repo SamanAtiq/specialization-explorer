@@ -1250,7 +1250,7 @@ export class ApiGatewayStack extends cdk.Stack {
         // Mistral Large
         `arn:aws:bedrock:${this.region}::foundation-model/mistral.mistral-large-2402-v1:0`,
         // Knowledge Base
-        `arn:aws:bedrock:${this.region}:${this.account}:knowledge-base/TB6DRFKKIF`,
+        `arn:aws:bedrock:${this.region}:${this.account}:knowledge-base/*`,
         // Guardrail
         `arn:aws:bedrock:${this.region}:${this.account}:guardrail/${bedrockGuardrail.attrGuardrailId}`,
       ],

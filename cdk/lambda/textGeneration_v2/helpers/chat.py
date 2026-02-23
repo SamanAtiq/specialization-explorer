@@ -103,7 +103,13 @@ INSTRUCTIONS:
 
 def _save_ai_response(db_connection, chat_session_id: str, answer_text: str, sources: List[Dict[str, Any]]):
     try:
-        sources_for_db = [{k: v for k, v in s.items() if k != 'content'} for s in sources]
+        sources_for_db = []
+        for s in sources:
+            s_copy = s.copy()
+            if 'content' in s_copy and isinstance(s_copy['content'], str):
+                s_copy['content'] = s_copy['content'][:200]
+            sources_for_db.append(s_copy)
+
         insert_message(db_connection, chat_session_id, "AI", answer_text, sources_for_db)
         touch_session(db_connection, chat_session_id)
         db_connection.commit()
