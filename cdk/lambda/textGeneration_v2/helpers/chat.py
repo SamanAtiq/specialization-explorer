@@ -3,7 +3,7 @@ import boto3
 import logging
 from typing import Dict, Any, Optional, List, Tuple
 from helpers.db import (
-    fetch_recent_messages, ensure_session_exists, insert_message, touch_session
+    fetch_recent_messages, ensure_session_exists, insert_message, update_last_active_session
 )
 from helpers.logic import get_current_prompt
 from helpers.bedrock import retrieve_documents, format_context_for_prompt
@@ -45,7 +45,7 @@ def _prepare_conversation(
         if save_user_message:
             ensure_session_exists(db_connection, chat_session_id, user_id)
             insert_message(db_connection, chat_session_id, "user", query, None)
-            touch_session(db_connection, chat_session_id)
+            update_last_active_session(db_connection, chat_session_id)
             db_connection.commit()
     except Exception as e:
         db_connection.rollback()
@@ -111,7 +111,7 @@ def _save_ai_response(db_connection, chat_session_id: str, answer_text: str, sou
             sources_for_db.append(s_copy)
 
         insert_message(db_connection, chat_session_id, "AI", answer_text, sources_for_db)
-        touch_session(db_connection, chat_session_id)
+        update_last_active_session(db_connection, chat_session_id)
         db_connection.commit()
     except Exception as e:
         db_connection.rollback()

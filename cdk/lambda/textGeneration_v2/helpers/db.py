@@ -114,12 +114,12 @@ def insert_message(
         raise e
     return message_id
 
-def touch_session(db_connection, chat_session_id: str) -> None:
+def update_last_active_session(db_connection, chat_session_id: str) -> None:
     try:
         with db_connection.cursor() as cur:
             cur.execute("UPDATE chat_sessions SET last_active_at = NOW() WHERE id = %s", (chat_session_id,))
     except Exception as e:
-        logger.error(f"touch_session failed: {e}")
+        logger.error(f"update_last_active_session failed: {e}")
 
 def fetch_system_config(db_connection) -> Dict[str, Any]:
     """
