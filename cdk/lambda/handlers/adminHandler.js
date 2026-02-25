@@ -492,6 +492,197 @@ exports.handler = async (event) => {
         }
       }
 
+      // Activate a historical version
+      case "POST /admin/system-messages/{system_message_type}/{version_id}/activate": {
+        let body;
+        try {
+          body = parseBody(event.body);
+        } catch (error) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: error.message });
+          break;
+        }
+
+        const messageType = event?.pathParameters?.system_message_type;
+        const versionId = event?.pathParameters?.version_id;
+
+        const allowedTypes = new Set([
+          "disclaimer",
+          "guardrails",
+          "system_role",
+          "system_checklist",
+          "system_instructions",
+          "initial_prompt",
+          "detective_phase_prompt",
+          "suggestion_phase_prompt",
+          "welcome_message",
+        ]);
+
+        // Validate path params
+        if (!messageType || typeof messageType !== "string" || !allowedTypes.has(messageType)) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({
+            error: "Invalid system_message_type",
+            allowed: Array.from(allowedTypes),
+          });
+          break;
+        }
+
+        if (!versionId || typeof versionId !== "string") {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "version_id is required" });
+          break;
+        }
+
+        // validate
+        const adminEmail = typeof body?.adminEmail === "string" ? body.adminEmail.trim() : "";
+        if (!adminEmail) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "adminEmail is required" });
+          break;
+        }
+
+        // Find admin user id (ensure role is admin)
+        const adminRows = await sqlConnection`
+          SELECT id, email, role
+          FROM users
+          WHERE email = ${adminEmail}
+          LIMIT 1
+        `;
+
+        if (adminRows.length === 0) {
+          response.statusCode = 404;
+          response.body = JSON.stringify({ error: "Admin user not found for email" });
+          break;
+        }
+
+        if (adminRows[0].role !== "admin") {
+          response.statusCode = 403;
+          response.body = JSON.stringify({ error: "User is not an admin" });
+          break;
+        }
+
+        try {
+          const result = await sqlConnection.begin(async (tx) => {
+            // Lock target row and verify it exists + belongs to specified type
+            const targetRows = await tx`
+              SELECT id, type, version, is_active
+              FROM system_messages
+              WHERE id = ${versionId}
+                AND type = ${messageType}::system_message_type
+              FOR UPDATE
+            `;
+
+            if (targetRows.length === 0) {
+              return { kind: "not_found" };
+            }
+
+            const target = targetRows[0];
+
+            // If already active, return success
+            if (target.is_active) {
+              const out = await tx`
+                SELECT
+                  sm.id,
+                  sm.type,
+                  sm.content,
+                  sm.version,
+                  sm.is_active,
+                  sm.created_by,
+                  u.email AS created_by_email,
+                  sm.created_at
+                FROM system_messages sm
+                LEFT JOIN users u ON u.id = sm.created_by
+                WHERE sm.id = ${target.id}
+                LIMIT 1
+              `;
+
+              return {
+                kind: "already_active",
+                activated: out[0],
+                previous_active: null,
+              };
+            }
+
+            // Find currently active version for this type (if any), lock it
+            const previousActiveRows = await tx`
+              SELECT id, version
+              FROM system_messages
+              WHERE type = ${messageType}::system_message_type
+                AND is_active = true
+              FOR UPDATE
+            `;
+
+            const previousActive = previousActiveRows[0] ?? null;
+
+            // Deactivate all active rows for this type (defensive, in case of bad data)
+            await tx`
+              UPDATE system_messages
+              SET is_active = false
+              WHERE type = ${messageType}::system_message_type
+                AND is_active = true
+            `;
+
+            // Activate target
+            await tx`
+              UPDATE system_messages
+              SET is_active = true
+              WHERE id = ${target.id}
+            `;
+
+            const out = await tx`
+              SELECT
+                sm.id,
+                sm.type,
+                sm.content,
+                sm.version,
+                sm.is_active,
+                sm.created_by,
+                u.email AS created_by_email,
+                sm.created_at
+              FROM system_messages sm
+              LEFT JOIN users u ON u.id = sm.created_by
+              WHERE sm.id = ${target.id}
+              LIMIT 1
+            `;
+
+            return {
+              kind: "activated",
+              activated: out[0],
+              previous_active: previousActive
+                ? {
+                    id: previousActive.id,
+                    version: previousActive.version,
+                  }
+                : null,
+            };
+          });
+
+          if (result.kind === "not_found") {
+            response.statusCode = 404;
+            response.body = JSON.stringify({
+              error: "System message version not found for given type/version_id",
+            });
+            break;
+          }
+
+          // Both "already_active" and "activated" return 200
+          response.statusCode = 200;
+          response.body = JSON.stringify({
+            success: true,
+            status: result.kind === "already_active" ? "already_active" : "activated",
+            activated: result.activated,
+            previous_active: result.previous_active,
+          });
+          break;
+        } catch (err) {
+          console.error("POST /admin/system-messages/{system_message_type}/{version_id}/activate failed:", err);
+          response.statusCode = 500;
+          response.body = JSON.stringify({ error: "Failed to activate system message version" });
+          break;
+        }
+      }
+
       // GET /admin/textbooks - Get all textbooks with user and question counts
       case "GET /admin/textbooks":
         const adminLimit = Math.min(

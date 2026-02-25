@@ -764,6 +764,177 @@ paths:
         httpMethod: POST
         type: aws_proxy
 
+  /admin/system-messages/{system_message_type}/{version_id}/activate:
+    <<: *commonOptions
+    post:
+      tags:
+        - Admin
+      summary: Activate a system message version (and deactivate the previous active version)
+      operationId: activate_admin_system_message_version
+      security:
+        - adminAuthorizer: []
+      parameters:
+        - name: system_message_type
+          in: path
+          required: true
+          description: The system message type that the version belongs to
+          schema:
+            type: string
+            enum:
+              - disclaimer
+              - guardrails
+              - system_role
+              - system_checklist
+              - system_instructions
+              - initial_prompt
+              - detective_phase_prompt
+              - suggestion_phase_prompt
+              - welcome_message
+        - name: version_id
+          in: path
+          required: true
+          description: UUID of the system message version row to activate
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - adminEmail
+              properties:
+                adminEmail:
+                  type: string
+                  format: email
+                  description: Email of the admin performing the activation (used to validate admin access)
+                  example: "admin@example.com"
+      responses:
+        "200":
+          description: Activation successful (or already active)
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                  - status
+                  - activated
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  status:
+                    type: string
+                    description: Whether the version was activated now or was already active
+                    enum:
+                      - activated
+                      - already_active
+                  activated:
+                    type: object
+                    required:
+                      - id
+                      - type
+                      - content
+                      - version
+                      - is_active
+                      - created_at
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      type:
+                        type: string
+                        enum:
+                          - disclaimer
+                          - guardrails
+                          - system_role
+                          - system_checklist
+                          - system_instructions
+                          - initial_prompt
+                          - detective_phase_prompt
+                          - suggestion_phase_prompt
+                          - welcome_message
+                      content:
+                        type: string
+                      version:
+                        type: integer
+                        minimum: 1
+                      is_active:
+                        type: boolean
+                        description: Should be true
+                        example: true
+                      created_by:
+                        type: string
+                        format: uuid
+                        nullable: true
+                      created_by_email:
+                        type: string
+                        format: email
+                        nullable: true
+                      created_at:
+                        type: string
+                        format: date-time
+                  previous_active:
+                    type: object
+                    nullable: true
+                    description: The previously active version that was deactivated (null if none existed or target was already active)
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      version:
+                        type: integer
+                        minimum: 1
+              examples:
+                activated_example:
+                  value:
+                    success: true
+                    status: "activated"
+                    activated:
+                      id: "2f0d8c1a-3e2e-4c5d-9c86-1f0a4f1c0d11"
+                      type: "disclaimer"
+                      content: "AI can make mistakes. Check important info."
+                      version: 2
+                      is_active: true
+                      created_by: "cdfcaadc-cad4-4647-a98f-9e4e0a6e049f"
+                      created_by_email: "admin@example.com"
+                      created_at: "2026-02-18T19:21:18.406Z"
+                    previous_active:
+                      id: "11111111-2222-3333-4444-555555555555"
+                      version: 3
+                already_active_example:
+                  value:
+                    success: true
+                    status: "already_active"
+                    activated:
+                      id: "2f0d8c1a-3e2e-4c5d-9c86-1f0a4f1c0d11"
+                      type: "disclaimer"
+                      content: "AI can make mistakes. Check important info."
+                      version: 2
+                      is_active: true
+                      created_by_email: "admin@example.com"
+                      created_at: "2026-02-18T19:21:18.406Z"
+                    previous_active: null
+        "400":
+          description: Bad Request - Invalid type/version_id/adminEmail
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden - Not an admin
+        "404":
+          description: Admin user not found or system message version not found
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${adminFunction.Arn}/invocations
+        passthroughBehavior: "when_no_match"
+        httpMethod: POST
+        type: aws_proxy
+
   # DEPRECATED since no longer needed in new project --> will delete later
   /admin/settings/token-limit:
     <<: *commonOptions
