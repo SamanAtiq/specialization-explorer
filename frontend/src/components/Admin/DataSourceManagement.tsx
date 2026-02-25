@@ -51,6 +51,175 @@ type PaginationInfo = {
   hasMore: boolean;
 };
 
+type DataSourceType = "csv" | "json" | "website";
+
+type DataSourceRow = {
+  id: string;
+  name: string; // file name or URL
+  type: DataSourceType;
+  created_at: string; // ISO string
+  metadata: Record<string, unknown>;
+  include_patterns?: string[]; // parsed array
+  exclude_patterns?: string[]; // parsed array
+};
+
+type IngestionRunRow = {
+  id: string;
+  data_source_id: string;
+  status: "completed" | "failed" | "running" | "queued";
+  error_message?: string | null;
+  created_at: string;
+  completed_at?: string | null;
+};
+
+// --- MOCK DATA SOURCES (from your SQL output) ---
+const MOCK_DATA_SOURCES: DataSourceRow[] = [
+  {
+    id: "10000000-0000-0000-0000-000000000001",
+    name: "alumni_data_final.csv",
+    type: "csv",
+    created_at: "2026-02-05T22:51:03Z",
+    metadata: {},
+  },
+  {
+    id: "10000000-0000-0000-0000-000000000002",
+    name: "alumni_data_final.csv.metadata.json",
+    type: "json",
+    created_at: "2026-02-06T00:43:41Z",
+    metadata: { },
+  },
+  {
+    id: "10000000-0000-0000-0000-000000000003",
+    name: "https://students.ubc.ca/career/your-degree/science/",
+    type: "website",
+    created_at: "2026-02-12T17:43:00Z",
+    metadata: {},
+    include_patterns: [
+      "^https:\\/\\/students\\.ubc\\.ca\\/career\\/your-degree\\/science\\/.*",
+    ],
+    exclude_patterns: [],
+  },
+  {
+    id: "10000000-0000-0000-0000-000000000004",
+    name: "https://vancouver.calendar.ubc.ca/course-descriptions/institution/120",
+    type: "website",
+    created_at: "2026-02-10T22:44:00Z",
+    metadata: {},
+    include_patterns: [
+      "^https:\\/\\/vancouver\\.calendar\\.ubc\\.ca\\/course-descriptions\\/institution\\/120.*",
+      "^https:\\/\\/vancouver\\.calendar\\.ubc\\.ca\\/course-descriptions\\/subject\\/(asic|astr|atsc|bioc|biol|biot|chem|cogs|cpsc|dsci|eosc|envr|fish|gsat|isci|math|micb|phys|stat|zool|scie)v.*",
+    ],
+    exclude_patterns: [],
+  },
+  {
+    id: "10000000-0000-0000-0000-000000000005",
+    name: "https://vancouver.calendar.ubc.ca/faculties-colleges-and-schools/faculty-science/bachelor-science",
+    type: "website",
+    created_at: "2026-02-06T23:59:00Z",
+    metadata: {},
+    include_patterns: [
+      "^https:\\/\\/vancouver\\.calendar\\.ubc\\.ca\\/faculties-colleges-and-schools\\/faculty-science\\/bachelor-science$",
+      "^https:\\/\\/vancouver\\.calendar\\.ubc\\.ca\\/faculties-colleges-and-schools\\/faculty-science\\/bachelor-science\\/(astronomy|atmospheric-science|behavioural-neuroscience|biochemistry|biology|biotechnology|botany|cellular-and-physiological-sciences|chemistry|cognitive-systems|combined-major-in-science|computer-science|data-science|earth-and-ocean-sciences|environmental-sciences|forensic-science|general-science|geographical-sciences|geological-sciences|geophysics|integrated-sciences|mathematics|microbiology-and-immunology|neuroscience|oceanography|pharmacology|physics|statistics|zoology|double-major-and-dual-degree-options|minor-options|introduction-degree-options)$",
+    ],
+    exclude_patterns: [],
+  },
+  {
+    id: "10000000-0000-0000-0000-000000000006",
+    name: "https://science.ubc.ca/programs",
+    type: "website",
+    created_at: "2026-02-05T23:56:00Z",
+    metadata: {},
+    include_patterns: [
+      "^https:\\/\\/science\\.ubc\\.ca\\/programs\\/?$",
+      "^https:\\/\\/science\\.ubc\\.ca\\/students\\/programs\\/(astronomy|atmospheric-science|biochemistry|biology|biophysics|biotechnology|botany|cellular-anatomical-physiological-sciences|chemistry|cognitive-systems|combined-major-science|computer-science|data-science|earth-and-ocean-sciences|environmental-sciences|forensic-science|geographical-sciences|geological-sciences|geophysics|integrated-sciences|mathematics|microbiology-and-immunology|neuroscience|oceanography|pharmacology|physics|statistics|zoology)$",
+    ],
+    exclude_patterns: [],
+  },
+];
+
+// --- MOCK INGESTION RUNS (from your SQL output) ---
+const MOCK_INGESTION_RUNS: IngestionRunRow[] = [
+  {
+    id: "20000000-0000-0000-0000-000000000001",
+    data_source_id: "10000000-0000-0000-0000-000000000001",
+    status: "completed",
+    created_at: "2026-02-05T22:51:03Z",
+    completed_at: "2026-02-06T00:51:03Z",
+  },
+  {
+    id: "20000000-0000-0000-0000-000000000002",
+    data_source_id: "10000000-0000-0000-0000-000000000002",
+    status: "completed",
+    created_at: "2026-02-06T00:43:41Z",
+    completed_at: "2026-02-06T02:43:41Z",
+  },
+  {
+    id: "20000000-0000-0000-0000-000000000003",
+    data_source_id: "10000000-0000-0000-0000-000000000003",
+    status: "completed",
+    created_at: "2026-02-12T17:43:00Z",
+    completed_at: "2026-02-12T18:02:00Z",
+  },
+  {
+    id: "20000000-0000-0000-0000-000000000004",
+    data_source_id: "10000000-0000-0000-0000-000000000004",
+    status: "completed",
+    created_at: "2026-02-10T22:44:00Z",
+    completed_at: "2026-02-10T22:56:00Z",
+  },
+  {
+    id: "20000000-0000-0000-0000-000000000005",
+    data_source_id: "10000000-0000-0000-0000-000000000005",
+    status: "completed",
+    created_at: "2026-02-06T23:59:00Z",
+    completed_at: "2026-02-07T03:40:00Z",
+  },
+  {
+    id: "20000000-0000-0000-0000-000000000006",
+    data_source_id: "10000000-0000-0000-0000-000000000006",
+    status: "completed",
+    created_at: "2026-02-05T23:56:00Z",
+    completed_at: "2026-02-06T04:09:00Z",
+  },
+];
+
+function formatDateTime(iso?: string | null) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString();
+}
+
+function typeLabel(t: DataSourceType) {
+  if (t === "website") return "Website";
+  if (t === "csv") return "CSV";
+  if (t === "json") return "JSON";
+  return t;
+}
+
+function statusBadge(status: IngestionRunRow["status"] | "no_runs") {
+  switch (status) {
+    case "completed":
+      return <Badge className="bg-green-100 text-green-700">Completed</Badge>;
+    case "failed":
+      return <Badge className="bg-red-100 text-red-700">Failed</Badge>;
+    case "running":
+      return <Badge className="bg-blue-100 text-blue-700">Running</Badge>;
+    case "queued":
+      return <Badge className="bg-gray-100 text-gray-700">Queued</Badge>;
+    default:
+      return <Badge className="bg-gray-100 text-gray-700">No runs</Badge>;
+  }
+}
+
+function prettyJson(obj: Record<string, unknown> | undefined) {
+  try {
+    return JSON.stringify(obj ?? {}, null, 2);
+  } catch {
+    return "{}";
+  }
+}
+
 export default function DataSourceManagement() {
   const [isUrlDialogOpen, setIsUrlDialogOpen] = useState(false);
   const [webUrl, setWebUrl] = useState("");
@@ -75,6 +244,12 @@ export default function DataSourceManagement() {
     messages: 0,
     questions: 0,
   });
+
+  const [dataSources] = useState<DataSourceRow[]>(MOCK_DATA_SOURCES);
+  const [ingestionRuns] = useState<IngestionRunRow[]>(MOCK_INGESTION_RUNS);
+
+  // shows subrow
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const fetchAnalyticsTotals = async () => {
     try {
@@ -209,6 +384,38 @@ export default function DataSourceManagement() {
       setUploading(false);
     }
   };
+
+  const latestRunBySourceId = (() => {
+    const map = new Map<string, IngestionRunRow>();
+    for (const r of ingestionRuns) {
+      const existing = map.get(r.data_source_id);
+      const a = existing?.created_at ? new Date(existing.created_at).getTime() : 0;
+      const b = r.created_at ? new Date(r.created_at).getTime() : 0;
+      if (!existing || b > a) map.set(r.data_source_id, r);
+    }
+    return map;
+  })();
+
+  // For CSV -> JSON pairing: "alumni_data_final.csv" -> find "alumni_data_final.csv.metadata.json"
+  const jsonByCsvName = (() => {
+    const map = new Map<string, DataSourceRow>();
+    for (const ds of dataSources) {
+      if (ds.type === "json" && ds.name.endsWith(".metadata.json")) {
+        const base = ds.name.replace(".metadata.json", "");
+        map.set(base, ds);
+      }
+    }
+    return map;
+  })();
+
+  // hide JSON rows from main table (they appear as subrow under CSV)
+  const visibleDataSources = dataSources
+    .filter((ds) => ds.type !== "json")
+    .filter((ds) => {
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.trim().toLowerCase();
+      return ds.name.toLowerCase().includes(q) || ds.type.toLowerCase().includes(q);
+    });
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto animate-in fade-in duration-500">
@@ -470,17 +677,18 @@ export default function DataSourceManagement() {
             <Table>
               <TableHeader className="bg-gray-50">
                 <TableRow>
-                  <TableHead className="w-[40%]">Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Re-ingest</TableHead>
-                  <TableHead>Delete</TableHead>
+                  <TableHead className="w-[45%]">Name</TableHead>
+                  <TableHead className="w-[10%]">Type</TableHead>
+                  <TableHead className="w-[12%]">Status</TableHead>
+                  <TableHead className="w-[16%]">Uploaded</TableHead>
+                  <TableHead className="w-[16%]">Ingested</TableHead>
+                  <TableHead className="w-[8%] text-right">Delete</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
+              {/* <TableBody> */}
                 {/* TODO: having loading logic and call endpoints */}
                 {/* {loading ? ( */}
-                {false ? (
+                {/* {false ? (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center py-8">
                       <div className="flex items-center justify-center gap-2">
@@ -507,7 +715,214 @@ export default function DataSourceManagement() {
                       </Button>
                     </TableCell>
                   </TableRow>
-                }
+                } */}
+              {/* </TableBody> */}
+              <TableBody>
+                {visibleDataSources.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-10 text-gray-500">
+                      No data sources found.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  visibleDataSources.map((ds) => {
+                    const run = latestRunBySourceId.get(ds.id);
+                    const status = run?.status ?? "no_runs";
+                    const isExpandable =
+                      ds.type === "website" ||
+                      (ds.type === "csv" && !!jsonByCsvName.get(ds.name));
+                    const isOpen = !!expanded[ds.id];
+
+                    return (
+                      <>
+                        <TableRow
+                          key={ds.id}
+                          className={isOpen ? "bg-gray-50/50" : ""}
+                        >
+                          <TableCell className="align-top">
+                            <div className="flex items-start gap-2">
+                              {isExpandable ? (
+                                <button
+                                  type="button"
+                                  className="mt-0.5 text-xs rounded border border-gray-200 px-2 py-1 text-gray-600 hover:bg-gray-50"
+                                  onClick={() =>
+                                    setExpanded((prev) => ({ ...prev, [ds.id]: !prev[ds.id] }))
+                                  }
+                                  title={isOpen ? "Hide details" : "Show details"}
+                                >
+                                  {isOpen ? "Hide" : "Details"}
+                                </button>
+                              ) : (
+                                <span className="mt-0.5 text-xs rounded border border-gray-200 px-2 py-1 text-gray-400">
+                                  —
+                                </span>
+                              )}
+
+                              <div className="min-w-0">
+                                <div className="font-medium text-gray-900 break-all">
+                                  {ds.name}
+                                </div>
+                              </div>
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="align-top">
+                            <Badge variant="secondary">{typeLabel(ds.type)}</Badge>
+                          </TableCell>
+
+                          <TableCell className="align-top">{statusBadge(status)}</TableCell>
+
+                          <TableCell className="align-top text-sm text-gray-700">
+                            {formatDateTime(ds.created_at)}
+                          </TableCell>
+
+                          <TableCell className="align-top text-sm text-gray-700">
+                            {formatDateTime(run?.completed_at ?? null)}
+                          </TableCell>
+
+                          <TableCell className="align-top text-right">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-red-500"
+                              disabled
+                              title="Delete (mock)"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+
+                        {/* Subrow */}
+                        {isOpen ? (
+                          <TableRow key={`${ds.id}-sub`}>
+                            <TableCell colSpan={6} className="bg-gray-50/70">
+                              {ds.type === "website" ? (
+                                <div className="space-y-3">
+                                  <div className="text-sm font-medium text-gray-800">
+                                    Crawl rules
+                                  </div>
+
+                                  {(ds.include_patterns?.length ?? 0) > 0 ? (
+                                    <div>
+                                      <div className="text-xs font-semibold text-gray-600 mb-1">
+                                        Include patterns
+                                      </div>
+                                      <div className="text-xs font-mono bg-white border border-gray-200 rounded p-3 overflow-auto">
+                                        {(ds.include_patterns ?? []).map((p, i) => (
+                                          <div key={i} className="break-all">
+                                            {p}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="text-xs text-gray-500">
+                                      No include patterns.
+                                    </div>
+                                  )}
+
+                                  {(ds.exclude_patterns?.length ?? 0) > 0 ? (
+                                    <div>
+                                      <div className="text-xs font-semibold text-gray-600 mb-1">
+                                        Exclude patterns
+                                      </div>
+                                      <div className="text-xs font-mono bg-white border border-gray-200 rounded p-3 overflow-auto">
+                                        {(ds.exclude_patterns ?? []).map((p, i) => (
+                                          <div key={i} className="break-all">
+                                            {p}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="text-xs text-gray-500">
+                                      No exclude patterns.
+                                    </div>
+                                  )}
+                                </div>
+                              ) : ds.type === "csv" ? (
+                                (() => {
+                                  const csvRun = latestRunBySourceId.get(ds.id);
+                                  const csvStatus = csvRun?.status ?? "no_runs";
+
+                                  const json = jsonByCsvName.get(ds.name);
+                                  const jsonRun = json ? latestRunBySourceId.get(json.id) : undefined;
+                                  const jsonStatus = jsonRun?.status ?? "no_runs";
+
+                                  return (
+                                    <div className="space-y-5">
+
+                                      {/* JSON "child row" summary (mirrors main table columns) */}
+                                      <div className="space-y-2">
+                                        <div className="text-sm font-medium text-gray-800">
+                                          Metadata JSON file
+                                        </div>
+
+                                        {json ? (
+                                          <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+                                            <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+  {/* Row aligned to the main table columns */}
+  <div className="grid grid-cols-12 gap-2 px-3 py-3 text-sm items-start">
+    {/* Name (45%) -> col-span-6 is close; we’ll use 6/12 */}
+    <div className="col-span-6 min-w-0">
+      <div className="text-gray-900 break-all font-medium">
+        {json.name}
+      </div>
+    </div>
+
+    {/* Type (10%) -> col-span-1 */}
+    <div className="col-span-1">
+      <Badge variant="secondary">{typeLabel(json.type)}</Badge>
+    </div>
+
+    {/* Status (12%) -> col-span-1 */}
+    <div className="col-span-1">{statusBadge(jsonStatus)}</div>
+
+    {/* Uploaded (16%) -> col-span-2 */}
+    <div className="col-span-2 text-xs text-gray-700">
+      {formatDateTime(json.created_at)}
+    </div>
+
+    {/* Ingested (16%) -> col-span-1 or 2; we’ll do col-span-1 and keep Delete at 1 */}
+    <div className="col-span-1 text-xs text-gray-700">
+      {formatDateTime(jsonRun?.completed_at ?? null)}
+    </div>
+
+    {/* Delete (8%) -> col-span-1 */}
+    <div className="col-span-1 flex justify-end">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 text-red-500"
+        disabled
+        title="Delete (mock)"
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </div>
+  </div>
+</div>
+                                          </div>
+                                        ) : (
+                                          <div className="text-xs text-gray-500">
+                                            No metadata JSON found for this CSV.
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })()
+                              ) : (
+                                <div className="text-xs text-gray-500">No details.</div>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ) : null}
+                      </>
+                    );
+                  })
+                )}
               </TableBody>
             </Table>
           </CardContent>
