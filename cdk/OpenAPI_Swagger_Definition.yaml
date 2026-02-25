@@ -917,7 +917,6 @@ paths:
                       is_active: true
                       created_by_email: "admin@example.com"
                       created_at: "2026-02-18T19:21:18.406Z"
-                    previous_active: null
         "400":
           description: Bad Request - Invalid type/version_id/adminEmail
         "401":
