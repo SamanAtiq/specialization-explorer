@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Save, Bot } from "lucide-react";
+import { Save, Bot, ChevronDown, ChevronUp, Plus, Trash2, Edit2, X, List } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -25,6 +25,7 @@ type SystemSettingsDTO = {
   max_characters_per_ai_message: number;
   temperature: number;
   top_p: number;
+  specialization_list?: string[];
 
   updated_at?: string;
   updated_by_email?: string | null;
@@ -39,6 +40,7 @@ const DEFAULT_SETTINGS: SystemSettingsDTO = {
   max_characters_per_ai_message: 5000,
   temperature: 0.2,
   top_p: 0.9,
+  specialization_list: [],
 };
 
 // Default seeded messages (v1, active, created_by NULL)
@@ -198,6 +200,11 @@ export default function SystemSettings() {
   const [settings, setSettings] = useState<SystemSettingsDTO>(DEFAULT_SETTINGS);
   const [adminEmail, setAdminEmail] = useState<string | null>(null);
 
+  const [specsExpanded, setSpecsExpanded] = useState(false);
+  const [newSpecName, setNewSpecName] = useState("");
+  const [editingSpecIdx, setEditingSpecIdx] = useState<number | null>(null);
+  const [editingSpecName, setEditingSpecName] = useState("");
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -250,6 +257,7 @@ export default function SystemSettings() {
           data.max_characters_per_ai_message ?? DEFAULT_SETTINGS.max_characters_per_ai_message,
         temperature: data.temperature ?? DEFAULT_SETTINGS.temperature,
         top_p: data.top_p ?? DEFAULT_SETTINGS.top_p,
+        specialization_list: data.specialization_list ?? DEFAULT_SETTINGS.specialization_list,
         updated_at: data.updated_at,
         updated_by_email: data.updated_by_email ?? null,
       });
@@ -303,6 +311,7 @@ export default function SystemSettings() {
         max_characters_per_ai_message: settings.max_characters_per_ai_message,
         temperature: settings.temperature,
         top_p: settings.top_p,
+        specialization_list: settings.specialization_list,
         updated_by_email: adminEmail,
       };
 
@@ -427,7 +436,7 @@ export default function SystemSettings() {
       };
     });
   };
-  
+
   const activateSystemMessage = async (
     type: SystemMessageType,
     versionId: string
@@ -606,7 +615,156 @@ export default function SystemSettings() {
                 </div>
               </div>
 
-              <div className="pt-2">
+              {/* Specializations List (Inner Dropdown) */}
+              <div className="border border-gray-200 rounded-lg mt-8">
+                <div
+                  className={`cursor-pointer hover:bg-gray-50 transition-colors flex flex-row items-center justify-between p-6 ${specsExpanded ? 'border-b border-gray-100 rounded-t-lg' : 'rounded-lg'}`}
+                  onClick={() => setSpecsExpanded(!specsExpanded)}
+                >
+                  <div className="flex flex-col space-y-1.5">
+                    <h3 className="font-semibold leading-none tracking-tight flex items-center gap-2">
+                      <List className="h-5 w-5 text-[#2c5f7c]" />
+                      Specializations
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      Manage the list of available specializations.
+                    </p>
+                  </div>
+                  {specsExpanded ? (
+                    <ChevronUp className="h-5 w-5 text-gray-400" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5 text-gray-400" />
+                  )}
+                </div>
+
+                {specsExpanded && (
+                  <div className="space-y-4 p-6 pt-4 bg-gray-50/50 rounded-b-lg">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Input
+                        placeholder="New specialization name..."
+                        value={newSpecName}
+                        onChange={(e) => setNewSpecName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && newSpecName.trim()) {
+                            setSettings((s) => ({
+                              ...s,
+                              specialization_list: [...(s.specialization_list || []), newSpecName.trim()],
+                            }));
+                            setNewSpecName("");
+                          }
+                        }}
+                        className="bg-white"
+                      />
+                      <Button
+                        variant="outline"
+                        className="shrink-0 bg-white"
+                        onClick={() => {
+                          if (newSpecName.trim()) {
+                            setSettings((s) => ({
+                              ...s,
+                              specialization_list: [...(s.specialization_list || []), newSpecName.trim()],
+                            }));
+                            setNewSpecName("");
+                          }
+                        }}
+                      >
+                        <Plus className="mr-2 h-4 w-4" /> Add
+                      </Button>
+                    </div>
+
+                    <div className="border rounded-md divide-y bg-white max-h-[400px] overflow-y-auto">
+                      {(settings.specialization_list || []).map((spec, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-3 hover:bg-gray-50 group">
+                          {editingSpecIdx === idx ? (
+                            <div className="flex items-center gap-2 flex-1 mr-4">
+                              <Input
+                                value={editingSpecName}
+                                onChange={(e) => setEditingSpecName(e.target.value)}
+                                className="h-8"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && editingSpecName.trim()) {
+                                    setSettings((s) => {
+                                      const newList = [...(s.specialization_list || [])];
+                                      newList[idx] = editingSpecName.trim();
+                                      return { ...s, specialization_list: newList };
+                                    });
+                                    setEditingSpecIdx(null);
+                                  } else if (e.key === "Escape") {
+                                    setEditingSpecIdx(null);
+                                  }
+                                }}
+                              />
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0"
+                                onClick={() => {
+                                  if (editingSpecName.trim()) {
+                                    setSettings((s) => {
+                                      const newList = [...(s.specialization_list || [])];
+                                      newList[idx] = editingSpecName.trim();
+                                      return { ...s, specialization_list: newList };
+                                    });
+                                    setEditingSpecIdx(null);
+                                  }
+                                }}
+                              >
+                                <Save className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0"
+                                onClick={() => setEditingSpecIdx(null)}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <>
+                              <span className="text-sm font-medium">{spec}</span>
+                              <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 w-8 p-0"
+                                  onClick={() => {
+                                    setEditingSpecIdx(idx);
+                                    setEditingSpecName(spec);
+                                  }}
+                                >
+                                  <Edit2 className="h-4 w-4 text-gray-500 hover:text-blue-500" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  onClick={() => {
+                                    setSettings((s) => ({
+                                      ...s,
+                                      specialization_list: (s.specialization_list || []).filter((_, i) => i !== idx),
+                                    }));
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                      {(!settings.specialization_list || settings.specialization_list.length === 0) && (
+                        <div className="p-4 text-center text-sm text-gray-500">
+                          No specializations found.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-6 border-t border-gray-100 mt-8">
                 <Button
                   onClick={handleSaveSystemSettings}
                   disabled={saving}
@@ -629,6 +787,8 @@ export default function SystemSettings() {
           )}
         </CardContent>
       </Card>
+
+
 
       {/* System Messages */}
       <div className="space-y-4">
@@ -658,6 +818,6 @@ export default function SystemSettings() {
           ))}
         </div>
       </div>
-    </div>
+    </div >
   );
 }
