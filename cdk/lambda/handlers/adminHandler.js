@@ -1807,7 +1807,7 @@ exports.handler = async (event) => {
         break;
       }
 
-      // GET /admin/system-settings - Fetch latest system settings
+      // Fetch latest system settings
       case "GET /admin/system-settings": {
         const rows = await sqlConnection`
           WITH latest AS (
@@ -1824,6 +1824,7 @@ exports.handler = async (event) => {
             latest.max_characters_per_ai_message,
             latest.temperature,
             latest.top_p,
+            latest.specialization_list,
             u.email AS updated_by_email,
             latest.updated_at
           FROM latest
@@ -1847,7 +1848,7 @@ exports.handler = async (event) => {
         break;
       }
 
-      // PUT /admin/system-settings - Update settings (patch-style)
+      // Update settings (patch-style)
       case "PUT /admin/system-settings": {
         let body;
         try {
