@@ -219,7 +219,7 @@ export default function SystemMessageEditor({
           </div>
 
           <div className="text-xs text-gray-500">
-            Version{" "}
+            Type{" "}
             <span className="font-medium text-gray-700">
               {current?.version ?? 1}
             </span>{" "}
@@ -227,6 +227,7 @@ export default function SystemMessageEditor({
             <span className="font-medium text-gray-700">
               {sorted.length}
             </span>
+            {" "}version{sorted.length > 1 ? "s" : ""}
           </div>
         </div>
 
