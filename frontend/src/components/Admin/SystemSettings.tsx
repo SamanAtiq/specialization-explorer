@@ -412,6 +412,49 @@ export default function SystemSettings() {
     }
   };
 
+  const handleActivateSystemMessageVersion = (
+    type: SystemMessageType,
+    versionId: string
+  ) => {
+    setMessages((prev) => {
+      const existing = prev[type] ?? [];
+      return {
+        ...prev,
+        [type]: existing.map((v) => ({
+          ...v,
+          is_active: v.id === versionId,
+        })),
+      };
+    });
+  };
+  
+  const activateSystemMessage = async (
+    type: SystemMessageType,
+    versionId: string
+  ): Promise<void> => {
+    const session = await AuthService.getAuthSession(true);
+    const token = session.tokens.idToken;
+
+    if (!adminEmail) throw new Error("Missing adminEmail");
+
+    const res = await fetch(
+      `${import.meta.env.VITE_API_ENDPOINT}/admin/system-messages/${type}/${versionId}/activate`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: token,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ adminEmail }),
+      }
+    );
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Failed to activate system message (${res.status}): ${text}`);
+    }
+  };
+
   useEffect(() => {
     fetchAdminCredentials();
     fetchSystemSettings();
@@ -607,8 +650,10 @@ export default function SystemSettings() {
               adminEmail={adminEmail}
               onCreateVersion={handleCreateSystemMessageVersion}
               onDeleteVersion={handleDeleteSystemMessageVersion}
+              onActivateVersion={handleActivateSystemMessageVersion}
               onSave={saveSystemMessage}
               onDelete={deleteSystemMessage}
+              onActivate={activateSystemMessage}
             />
           ))}
         </div>

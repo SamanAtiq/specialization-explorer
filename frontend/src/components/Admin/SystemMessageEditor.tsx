@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bot, ChevronLeft, ChevronRight, CheckCircle2, Save, Trash2 } from "lucide-react";
+import {
+  Bot,
+  ChevronLeft,
+  ChevronRight,
+  CheckCircle2,
+  Save,
+  Trash2,
+  Power
+ } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -48,8 +56,10 @@ type Props = {
 
   onCreateVersion: (type: SystemMessageType, newVersion: SystemMessageVersion) => void;
   onDeleteVersion: (type: SystemMessageType, versionId: string) => void;
+  onActivateVersion: (type: SystemMessageType, versionId: string) => void;
   onSave: (type: SystemMessageType, content: string) => Promise<SystemMessageVersion>;
   onDelete: (type: SystemMessageType, versionId: string) => Promise<void>;
+  onActivate: (type: SystemMessageType, versionId: string) => Promise<void>;
 };
 
 function formatDate(iso?: string) {
@@ -72,8 +82,10 @@ export default function SystemMessageEditor({
   adminEmail,
   onCreateVersion,
   onDeleteVersion,
+  onActivateVersion,
   onSave,
   onDelete,
+  onActivate,
 }: Props) {
   const sorted = useMemo(() => {
     // Active first, then version desc, then created_at desc
@@ -98,6 +110,8 @@ export default function SystemMessageEditor({
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  const [activating, setActivating] = useState(false);
 
   useEffect(() => {
     setDraft(current?.content ?? "");
@@ -177,6 +191,26 @@ export default function SystemMessageEditor({
       setSaveError("Failed to delete version.");
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleActivate = async () => {
+    if (!current?.id) return;
+    if (current.is_active) return;
+
+    setActivating(true);
+    setSaveError(null);
+
+    try {
+      await onActivate(type, current.id);
+
+      // Update parent-local versions state so selected version is active
+      onActivateVersion(type, current.id);
+    } catch (e) {
+      console.error(e);
+      setSaveError("Failed to activate version.");
+    } finally {
+      setActivating(false);
     }
   };
 
@@ -327,8 +361,21 @@ export default function SystemMessageEditor({
             <Button
               type="button"
               variant="outline"
+              onClick={handleActivate}
+              disabled={saving || deleting || activating || !current?.id}
+              className="border-green-200 text-green-700 hover:bg-green-50 hover:text-green-800"
+            >
+              <Power className="mr-2 h-4 w-4" />
+              {activating ? "Activating..." : "Activate Version"}
+            </Button>
+          ) : null}
+
+          {!current?.is_active ? (
+            <Button
+              type="button"
+              variant="outline"
               onClick={() => setDeleteOpen(true)}
-              disabled={saving || deleting || !current?.id}
+              disabled={saving || deleting || activating || !current?.id}
               className="border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
             >
               <Trash2 className="mr-2 h-4 w-4" />
