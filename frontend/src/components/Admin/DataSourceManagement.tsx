@@ -251,6 +251,16 @@ export default function DataSourceManagement() {
   // shows subrow
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
+  const [includePatternsText, setIncludePatternsText] = useState("");
+  const [excludePatternsText, setExcludePatternsText] = useState("");
+
+  function parsePatterns(text: string): string[] {
+    return (text ?? "")
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
   const fetchAnalyticsTotals = async () => {
     try {
       setLoading(true);
@@ -484,23 +494,57 @@ export default function DataSourceManagement() {
                             </DialogDescription>
                           </DialogHeader>
                           <div className="grid gap-4 py-4">
-                            <Input
-                              type="url"
-                              placeholder="https://example.com/resource"
-                              value={webUrl}
-                              onChange={e => {
-                                setWebUrl(e.target.value);
-                                setWebUrlStatus({ type: null, message: "" });
-                              }}
-                            />
-                            {webUrlStatus.message && (
-                              <div
-                                className={`text-sm p-2 rounded ${webUrlStatus.type === "success" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
-                              >
-                                {webUrlStatus.message}
-                              </div>
-                            )}
-                          </div>
+  <div className="space-y-2">
+    <div className="text-sm font-medium text-gray-900">Web URL</div>
+    <Input
+      type="url"
+      placeholder="https://example.com/resource"
+      value={webUrl}
+      onChange={(e) => {
+        setWebUrl(e.target.value);
+        setWebUrlStatus({ type: null, message: "" });
+      }}
+    />
+  </div>
+
+  <div className="space-y-2">
+    <div className="text-sm font-medium text-gray-900">Include patterns</div>
+    <div className="text-xs text-gray-500">
+      Optional. One regex per line.
+    </div>
+    <textarea
+      value={includePatternsText}
+      onChange={(e) => setIncludePatternsText(e.target.value)}
+      placeholder="^https:\/\/example\.com\/science\/.*"
+      className="min-h-[96px] w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-mono"
+    />
+  </div>
+
+  <div className="space-y-2">
+    <div className="text-sm font-medium text-gray-900">Exclude patterns</div>
+    <div className="text-xs text-gray-500">
+      Optional. One regex per line.
+    </div>
+    <textarea
+      value={excludePatternsText}
+      onChange={(e) => setExcludePatternsText(e.target.value)}
+      placeholder="^https:\/\/example\.com\/science\/private\/.*"
+      className="min-h-[96px] w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-mono"
+    />
+  </div>
+
+  {webUrlStatus.message && (
+    <div
+      className={`text-sm p-2 rounded ${
+        webUrlStatus.type === "success"
+          ? "bg-green-100 text-green-700"
+          : "bg-red-100 text-red-700"
+      }`}
+    >
+      {webUrlStatus.message}
+    </div>
+  )}
+</div>
                           <DialogFooter>
                             <Button
                               variant="outline"
@@ -544,9 +588,10 @@ export default function DataSourceManagement() {
               </DialogTrigger>
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Upload Alumni CSV</DialogTitle>
+                  <DialogTitle>Upload Alumni Data</DialogTitle>
                   <DialogDescription>
-                    Upload a detailed CSV file containing alumni metadata. Max size 50MB. 
+                    Upload the alumni <span className="font-medium">CSV</span> and its corresponding{" "}
+                    <span className="font-medium">metadata JSON</span>. Max size 50MB each.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
@@ -622,12 +667,39 @@ export default function DataSourceManagement() {
                     </div>
                   )}
 
-                  <div className="text-xs text-gray-500">
-                    <p className="font-medium mb-1">Required CSV Columns:</p>
-                    <code className="bg-gray-100 px-1 py-0.5 rounded">
-                      Column 1, Column 2, Column 3, Column 4, Column 5...
-                    </code>
-                  </div>
+                  <div className="space-y-3 text-xs">
+  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+    <div className="flex items-start gap-2">
+      <AlertTriangle className="h-4 w-4 text-amber-700 mt-0.5" />
+      <div className="text-amber-800">
+        <div className="font-semibold">Two files are required</div>
+        <div className="mt-1 text-amber-700">
+          1) The <span className="font-medium">CSV</span> file (alumni records){" "}
+          <br />
+          2) A matching <span className="font-medium">metadata JSON</span> file
+          (same base name), e.g.{" "}
+          <code className="bg-white/70 px-1 py-0.5 rounded border border-amber-200">
+            alumni_data_final.csv.metadata.json
+          </code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div className="text-gray-500">
+    <p className="font-medium mb-1 text-gray-700">Required CSV Columns:</p>
+    <code className="bg-gray-100 px-1 py-0.5 rounded">
+      Profile, Headline, Year, Degree
+    </code>
+  </div>
+
+  <div className="text-gray-500">
+    <p className="font-medium mb-1 text-gray-700">Metadata JSON should include:</p>
+    <code className="bg-gray-100 px-1 py-0.5 rounded">
+      size_bytes, storage_class, schema_version, columns, source
+    </code>
+  </div>
+</div>
                 </div>
                 <DialogFooter>
                   <Button
