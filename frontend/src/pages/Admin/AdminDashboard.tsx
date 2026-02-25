@@ -1,6 +1,6 @@
 import { useState } from "react";
 import AdminSidebar from "@/components/Admin/AdminSidebar";
-import TextbookManagement from "@/components/Admin/DataSourceManagement";
+import DataSourceManagement from "@/components/Admin/DataSourceManagement";
 import Analytics from "@/components/Admin/Analytics";
 import SystemSettings from "@/components/Admin/SystemSettings";
 
@@ -18,7 +18,7 @@ export default function AdminDashboard() {
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto p-6 md:p-8">
-          {activeView === "dashboard" && <TextbookManagement />}
+          {activeView === "dashboard" && <DataSourceManagement />}
           {activeView === "analytics" && <Analytics />}
           {activeView === "system-settings" && <SystemSettings />}
           {activeView === "chat-history" && <SystemSettings />}
