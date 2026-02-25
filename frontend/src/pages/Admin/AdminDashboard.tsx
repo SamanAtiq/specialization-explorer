@@ -3,6 +3,7 @@ import AdminSidebar from "@/components/Admin/AdminSidebar";
 import DataSourceManagement from "@/components/Admin/DataSourceManagement";
 import Analytics from "@/components/Admin/Analytics";
 import SystemSettings from "@/components/Admin/SystemSettings";
+import ChatHistory from "@/components/Admin/ChatHistory";
 
 // --- Components ---
 
@@ -21,7 +22,7 @@ export default function AdminDashboard() {
           {activeView === "dashboard" && <DataSourceManagement />}
           {activeView === "analytics" && <Analytics />}
           {activeView === "system-settings" && <SystemSettings />}
-          {activeView === "chat-history" && <SystemSettings />}
+          {activeView === "chat-history" && <ChatHistory />}
         </main>
       </div>
     </div>

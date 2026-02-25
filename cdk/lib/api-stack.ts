@@ -1571,6 +1571,37 @@ export class ApiGatewayStack extends cdk.Stack {
       .defaultChild as lambda.CfnFunction;
     cfnLambda_admin.overrideLogicalId("adminFunction");
 
+    const lambdaAdminChatHistoryFunction = new lambda.Function(
+      this,
+      `${id}-adminChatHistoryFunction`,
+      {
+        runtime: lambda.Runtime.PYTHON_3_12,
+        code: lambda.Code.fromAsset("lambda/adminChatHistory"),
+        handler: "main.handler",
+        timeout: Duration.seconds(30),
+        vpc: vpcStack.vpc,
+        environment: {
+          SM_DB_CREDENTIALS: db.secretPathUser.secretName,
+          RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
+          REGION: this.region,
+        },
+        functionName: `${id}-adminChatHistoryFunction`,
+        memorySize: 512,
+        layers: [psycopgLayer],
+        role: lambdaRole,
+      }
+    );
+
+    lambdaAdminChatHistoryFunction.addPermission("AllowApiGatewayInvoke", {
+      principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
+      action: "lambda:InvokeFunction",
+      sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/admin*`,
+    });
+
+    const cfnLambda_adminChatHistory = lambdaAdminChatHistoryFunction.node
+      .defaultChild as lambda.CfnFunction;
+    cfnLambda_adminChatHistory.overrideLogicalId("adminChatHistoryFunction");
+
     const lambdaPromptTemplateFunction = new lambda.Function(
       this,
       `${id}-promptTemplateFunction`,
