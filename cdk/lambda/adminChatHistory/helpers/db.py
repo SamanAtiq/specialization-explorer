@@ -9,21 +9,21 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 # Fetch Secret Manager
-sm_client = boto3.client('secretsmanager', region_name=os.environ.get('REGION', 'ca-central-1'))
+_sm_client = boto3.client('secretsmanager', region_name=os.environ.get('REGION', 'ca-central-1'))
 
-def get_db_credentials():
+def _get_db_credentials():
     secret_name = os.environ.get('SM_DB_CREDENTIALS')
     if not secret_name:
         raise ValueError("SM_DB_CREDENTIALS environment variable not set")
     try:
-        response = sm_client.get_secret_value(SecretId=secret_name)
+        response = _sm_client.get_secret_value(SecretId=secret_name)
         return json.loads(response['SecretString'])
     except Exception as e:
         logger.error(f"Error fetching DB credentials from SM: {e}")
         raise
 
 def get_db_connection():
-    creds = get_db_credentials()
+    creds = _get_db_credentials()
     host = os.environ.get('RDS_PROXY_ENDPOINT', creds.get('host'))
     
     conn = psycopg2.connect(
