@@ -485,7 +485,7 @@ export class ApiGatewayStack extends cdk.Stack {
           },
           statement: {
             rateBasedStatement: {
-              limit: 50, // Very strict for AI generation endpoints
+              limit: 20, // 20 reqs / 5 mins prevents bots while allowing fast human chat
               aggregateKeyType: "IP",
               scopeDownStatement: {
                 // Apply to practice_materials and chat_sessions endpoints
@@ -533,6 +533,17 @@ export class ApiGatewayStack extends cdk.Stack {
           },
         },
       ],
+    });
+
+    // Custom Response for WAF Blocks (Returns 429 instead of 403)
+    this.api.addGatewayResponse(`${id}-WafBlockResponse`, {
+      type: apigateway.ResponseType.WAF_FILTERED,
+      statusCode: "429",
+      templates: {
+        "application/json": JSON.stringify({
+          error: "Rate limit exceeded. Please wait a few minutes before chatting again."
+        })
+      }
     });
     const wafAssociation = new wafv2.CfnWebACLAssociation(
       this,
