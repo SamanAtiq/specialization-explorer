@@ -1858,6 +1858,73 @@ exports.handler = async (event) => {
         break;
       }
 
+      // Fetches data sources and latest ingestion run per source
+      case "GET /admin/data_sources": {
+        try {
+
+          const rows = await sqlConnection`
+            SELECT
+              ds.id::text AS ds_id,
+              ds.name AS ds_name,
+              ds.type::text AS ds_type,
+              ds.created_at::text AS ds_created_at,
+              COALESCE(ds.metadata, '{}'::jsonb) AS ds_metadata,
+              ds.include_patterns AS ds_include_patterns,
+              ds.exclude_patterns AS ds_exclude_patterns,
+
+              ir.id::text AS ir_id,
+              ir.data_source_id::text AS ir_data_source_id,
+              ir.status::text AS ir_status,
+              ir.error_message AS ir_error_message,
+              ir.created_at::text AS ir_created_at,
+              ir.completed_at::text AS ir_completed_at
+            FROM data_sources ds
+            LEFT JOIN LATERAL (
+              SELECT *
+              FROM ingestion_runs ir
+              WHERE ir.data_source_id = ds.id
+              ORDER BY ir.created_at DESC
+              LIMIT 1
+            ) ir ON TRUE
+            ORDER BY ds.created_at DESC
+          `;
+
+          const items = rows.map((r) => {
+            const data_source = {
+              id: r.ds_id,
+              name: r.ds_name,
+              type: r.ds_type,
+              created_at: r.ds_created_at,
+              metadata: r.ds_metadata ?? {},
+              include_patterns: r.ds_include_patterns ?? undefined,
+              exclude_patterns: r.ds_exclude_patterns ?? undefined,
+            };
+
+            const latest_ingestion_run = r.ir_id
+              ? {
+                  id: r.ir_id,
+                  data_source_id: r.ir_data_source_id,
+                  status: r.ir_status,
+                  error_message: r.ir_error_message ?? null,
+                  created_at: r.ir_created_at,
+                  completed_at: r.ir_completed_at ?? null,
+                }
+              : null;
+
+            return { data_source, latest_ingestion_run };
+          });
+
+          response.statusCode = 200;
+          response.body = JSON.stringify({ items });
+          break;
+        } catch (err) {
+          console.error("GET /admin/data_sources error:", err);
+          response.statusCode = 500;
+          response.body = JSON.stringify({ message: "Internal Server Error" });
+          break;
+        }
+      }
+
       // Fetch latest system settings
       case "GET /admin/system-settings": {
         const rows = await sqlConnection`

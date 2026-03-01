@@ -1330,6 +1330,72 @@ paths:
         httpMethod: POST
         type: aws_proxy
 
+  /admin/data_sources:
+    <<: *commonOptions
+    get:
+      tags: [Admin]
+      summary: List data sources with latest ingestion run
+      operationId: get_admin_data_sources
+      security:
+        - adminAuthorizer: []
+      responses:
+        "200":
+          description: Data sources with latest ingestion run per source
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        data_source:
+                          type: object
+                          properties:
+                            id: { type: string }
+                            name: { type: string }
+                            type:
+                              type: string
+                              enum: [website, csv, json]
+                            created_at: { type: string }
+                            metadata:
+                              type: object
+                              additionalProperties: true
+                            include_patterns:
+                              type: array
+                              nullable: true
+                              items: { type: string }
+                            exclude_patterns:
+                              type: array
+                              nullable: true
+                              items: { type: string }
+                        latest_ingestion_run:
+                          nullable: true
+                          type: object
+                          properties:
+                            id: { type: string }
+                            data_source_id: { type: string }
+                            status:
+                              type: string
+                              enum: [running, failed, completed]
+                            error_message:
+                              type: string
+                              nullable: true
+                            created_at: { type: string }
+                            completed_at:
+                              type: string
+                              nullable: true
+        "401": { description: Unauthorized }
+        "500": { description: Internal Server Error }
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${adminFunction.Arn}/invocations
+        passthroughBehavior: when_no_match
+        httpMethod: POST
+        type: aws_proxy
+
   /public/config/welcomeMessage:
     <<: *commonOptions
     get:
