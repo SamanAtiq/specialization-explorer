@@ -112,9 +112,7 @@ export default function DataSourceManagement() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pagination, setPagination] = useState<PaginationInfo | null>(null);
   const navigate = useNavigate();
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -135,9 +133,11 @@ export default function DataSourceManagement() {
 
   // shows subrow
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-
   const [includePatternsText, setIncludePatternsText] = useState("");
   const [excludePatternsText, setExcludePatternsText] = useState("");
+
+  const PAGE_SIZE = 5;
+  const [page, setPage] = useState(1);
 
   const fetchAnalyticsTotals = async () => {
     try {
@@ -195,7 +195,6 @@ export default function DataSourceManagement() {
 
       const data = (await res.json()) as AdminDataSourcesResponse;
 
-      // flatten into the same shapes your UI already expects
       const ds = data.items.map((x) => x.data_source);
       const runs = data.items
         .map((x) => x.latest_ingestion_run)
@@ -203,9 +202,6 @@ export default function DataSourceManagement() {
 
       setDataSources(ds);
       setIngestionRuns(runs);
-
-      // if later you return pagination, set it here
-      // if (data.pagination) setPagination(data.pagination);
     } catch (e) {
       console.error(e);
       setError("Failed to load data sources");
@@ -219,6 +215,15 @@ export default function DataSourceManagement() {
     fetchAdminDataSources();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery]);
+  
+  // when a fresh fetch changes the number of rows, keep page in range
+  useEffect(() => {
+    setPage(1);
+  }, [dataSources.length]);
 
   const handleFileSelect = (selectedFile: File) => {
     setUploadStatus({ type: null, message: "" });
@@ -338,13 +343,20 @@ export default function DataSourceManagement() {
   })();
 
   // hide JSON rows from main table (they appear as subrow under CSV)
-  const visibleDataSources = dataSources
+  const filteredDataSources = dataSources
     .filter((ds) => ds.type !== "json")
     .filter((ds) => {
       if (!searchQuery.trim()) return true;
       const q = searchQuery.trim().toLowerCase();
-      return ds.name.toLowerCase().includes(q) || ds.type.toLowerCase().includes(q);
+      return (
+        ds.name.toLowerCase().includes(q) || ds.type.toLowerCase().includes(q)
+      );
     });
+
+  const totalPages = Math.max(1, Math.ceil(filteredDataSources.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const startIdx = (currentPage - 1) * PAGE_SIZE;
+  const pagedDataSources = filteredDataSources.slice(startIdx, startIdx + PAGE_SIZE);
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto animate-in fade-in duration-500">
@@ -685,14 +697,14 @@ export default function DataSourceManagement() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ) : visibleDataSources.length === 0 ? (
+                ) : pagedDataSources.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-10 text-gray-500">
                       No data sources found.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  visibleDataSources.map((ds) => {
+                  filteredDataSources.map((ds) => {
                     const run = latestRunBySourceId.get(ds.id);
                     const status = run?.status ?? "no_runs";
                     const isExpandable =
@@ -889,9 +901,46 @@ export default function DataSourceManagement() {
             </Table>
           </CardContent>
 
-          {/* Pagination Controls */}
-          {!loading && pagination && (
-            "TODO"
+          {/* Client-side Pagination Controls */}
+          {!loading && filteredDataSources.length > 0 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
+              <div className="text-sm text-gray-600">
+                Showing{" "}
+                <span className="font-medium">
+                  {Math.min(startIdx + 1, filteredDataSources.length)}
+                </span>{" "}
+                to{" "}
+                <span className="font-medium">
+                  {Math.min(startIdx + PAGE_SIZE, filteredDataSources.length)}
+                </span>{" "}
+                of <span className="font-medium">{filteredDataSources.length}</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Prev
+                </Button>
+
+                <div className="text-sm text-gray-700">
+                  Page <span className="font-medium">{currentPage}</span> of{" "}
+                  <span className="font-medium">{totalPages}</span>
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
           )}
         </Card>
       </div>
