@@ -43,13 +43,6 @@ type AnalyticsTotals = {
   questions?: number;
 };
 
-type PaginationInfo = {
-  limit: number;
-  offset: number;
-  total: number;
-  hasMore: boolean;
-};
-
 type DataSourceType = "csv" | "json" | "website";
 
 type DataSourceRow = {
