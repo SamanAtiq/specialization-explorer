@@ -1902,13 +1902,13 @@ exports.handler = async (event) => {
 
             const latest_ingestion_run = r.ir_id
               ? {
-                  id: r.ir_id,
-                  data_source_id: r.ir_data_source_id,
-                  status: r.ir_status,
-                  error_message: r.ir_error_message ?? null,
-                  created_at: r.ir_created_at,
-                  completed_at: r.ir_completed_at ?? null,
-                }
+                id: r.ir_id,
+                data_source_id: r.ir_data_source_id,
+                status: r.ir_status,
+                error_message: r.ir_error_message ?? null,
+                created_at: r.ir_created_at,
+                completed_at: r.ir_completed_at ?? null,
+              }
               : null;
 
             return { data_source, latest_ingestion_run };
@@ -1964,6 +1964,97 @@ exports.handler = async (event) => {
         response.statusCode = 200;
         response.body = JSON.stringify(rows[0] ?? fallback);
         break;
+      }
+
+      // fetches the list of users for admin to view
+      case "GET /admin/users": {
+        try {
+          const qs = event.queryStringParameters ?? {};
+          const limit = parseInt(qs.limit ?? "50", 10);
+          const offset = parseInt(qs.offset ?? "0", 10);
+
+          const rows = await sqlConnection`
+            SELECT id, email, display_name, role, created_at, last_seen_at
+            FROM users
+            ORDER BY last_seen_at DESC NULLS LAST
+            LIMIT ${limit} OFFSET ${offset}
+          `;
+
+          response.statusCode = 200;
+          response.body = JSON.stringify(rows);
+          break;
+        } catch (err) {
+          console.error("GET /admin/users error:", err);
+          response.statusCode = 500;
+          response.body = JSON.stringify({ error: "Internal Server Error" });
+          break;
+        }
+      }
+
+      // fetches the chat sessions for a specific user 
+      case "GET /admin/users/{userId}/chat_sessions": {
+        try {
+          const userId = event.pathParameters?.userId;
+          if (!userId) {
+            response.statusCode = 400;
+            response.body = JSON.stringify({ error: "User ID is required" });
+            break;
+          }
+
+          const qs = event.queryStringParameters ?? {};
+          const limit = parseInt(qs.limit ?? "50", 10);
+          const offset = parseInt(qs.offset ?? "0", 10);
+
+          const rows = await sqlConnection`
+            SELECT id, user_id, title, created_at, last_active_at
+            FROM chat_sessions
+            WHERE user_id = ${userId}
+            ORDER BY last_active_at DESC
+            LIMIT ${limit} OFFSET ${offset}
+          `;
+
+          response.statusCode = 200;
+          response.body = JSON.stringify(rows);
+          break;
+        } catch (err) {
+          console.error("GET /admin/users/{userId}/chat_sessions error:", err);
+          response.statusCode = 500;
+          response.body = JSON.stringify({ error: "Internal Server Error" });
+          break;
+        }
+      }
+
+      // fetches the messages for a specific chat session
+      case "GET /admin/chat_sessions/{sessionId}/messages": {
+        try {
+          const sessionId = event.pathParameters?.sessionId;
+          if (!sessionId) {
+            response.statusCode = 400;
+            response.body = JSON.stringify({ error: "Session ID is required" });
+            break;
+          }
+
+          const qs = event.queryStringParameters ?? {};
+          const limit = parseInt(qs.limit ?? "200", 10);
+          const offset = parseInt(qs.offset ?? "0", 10);
+
+          const rows = await sqlConnection`
+             SELECT id, chat_session_id, sender, content, sources, created_at
+             FROM chat_messages
+             WHERE chat_session_id = ${sessionId}
+             ORDER BY created_at ASC
+             LIMIT ${limit} OFFSET ${offset}
+          `;
+
+          response.statusCode = 200;
+          response.body = JSON.stringify(rows);
+          break;
+        } catch (err) {
+          console.error("GET /admin/chat_sessions/{sessionId}/messages error:", err);
+          response.statusCode = 500;
+          response.body = JSON.stringify({ error: "Internal Server Error" });
+          break;
+        }
       }
 
       // Update settings (patch-style)

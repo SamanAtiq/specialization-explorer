@@ -83,7 +83,7 @@ amplifyStack.addDependency(apiStack);
 
 const stackTags = {
   Project: "specEx",
-  StackPrefix: StackPrefix,
+  StackPrefix: StackPrefix || "SpecEx",
   Environment: environment || "dev",
   ManagedBy: "CDK",
 };
