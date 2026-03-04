@@ -12,6 +12,7 @@ import {
   MessageCircleMore,
 } from "lucide-react";
 import { AuthService } from "@/functions/authService";
+import { getCurrentUser } from "aws-amplify/auth";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -97,10 +98,19 @@ function statusBadge(status: IngestionRunRow["status"] | "no_runs") {
   }
 }
 
+function parsePatterns(text: string): string[] {
+  return text
+    .split("\n")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+};
+
 export default function DataSourceManagement() {
+  const [adminEmail, setAdminEmail] = useState<string | null>(null);
   const [isUrlDialogOpen, setIsUrlDialogOpen] = useState(false);
   const [webUrl, setWebUrl] = useState("");
   const [webUrlStatus, setWebUrlStatus] = useState<{ type: "success" | "error" | null; message: string }>({ type: null, message: "" });
+  const [addingUrl, setAddingUrl] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -129,6 +139,12 @@ export default function DataSourceManagement() {
 
   const PAGE_SIZE = 5;
   const [page, setPage] = useState(1);
+  
+  const fetchAdminCredentials = async () => {
+    const user = await getCurrentUser();
+    const email = user?.signInDetails?.loginId ?? null;
+    setAdminEmail(email);
+  };
 
   const fetchAnalyticsTotals = async () => {
     try {
@@ -202,6 +218,7 @@ export default function DataSourceManagement() {
   };
 
   useEffect(() => {
+    fetchAdminCredentials();
     fetchAnalyticsTotals();
     fetchAdminDataSources();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -215,6 +232,76 @@ export default function DataSourceManagement() {
   useEffect(() => {
     setPage(1);
   }, [dataSources.length]);
+
+  const handleAddWebUrl = async () => {
+    setAddingUrl(true);
+    try {
+      setWebUrlStatus({ type: null, message: "" });
+
+      if (!webUrl || !/^https?:\/\//.test(webUrl)) {
+        setWebUrlStatus({
+          type: "error",
+          message: "Please enter a valid URL (must start with http:// or https://).",
+        });
+        return; // finally will still run
+      }
+
+      const include_patterns = parsePatterns(includePatternsText);
+      const exclude_patterns = parsePatterns(excludePatternsText);
+
+      const session = await AuthService.getAuthSession(true);
+      const token = session.tokens.idToken;
+
+      const res = await fetch(
+        `${import.meta.env.VITE_API_ENDPOINT}/admin/data_source/website`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: token,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: webUrl.trim(),
+            include_patterns,
+            exclude_patterns,
+            created_by: adminEmail,
+            metadata: {}, // optional
+          }),
+        }
+      );
+
+      if (!res.ok) {
+        let msg = "Failed to add URL";
+        try {
+          const errJson = await res.json();
+          msg = errJson?.message || msg;
+        } catch {
+          // ignore
+        }
+        throw new Error(msg);
+      }
+
+      setWebUrlStatus({ type: "success", message: "URL added successfully." });
+
+      await fetchAdminDataSources();
+
+      setTimeout(() => {
+        setIsUrlDialogOpen(false);
+        setWebUrl("");
+        setIncludePatternsText("");
+        setExcludePatternsText("");
+        setWebUrlStatus({ type: null, message: "" });
+      }, 800);
+    } catch (e) {
+      console.error(e);
+      setWebUrlStatus({
+        type: "error",
+        message: e instanceof Error ? e.message : "Failed to add URL",
+      });
+    } finally {
+      setAddingUrl(false);
+    }
+  };
 
   const handleFileSelect = (selectedFile: File) => {
     setUploadStatus({ type: null, message: "" });
@@ -472,30 +559,22 @@ export default function DataSourceManagement() {
                     onClick={() => {
                       setIsUrlDialogOpen(false);
                       setWebUrl("");
+                      setIncludePatternsText("");
+                      setExcludePatternsText("");
                       setWebUrlStatus({ type: null, message: "" });
                     }}
                   >
                     Cancel
                   </Button>
-                  <Button
-                    className="bg-[#2c5f7c] hover:bg-[#234d63]"
-                    onClick={() => {
-                      // Basic URL validation
-                      if (!webUrl || !/^https?:\/\//.test(webUrl)) {
-                        setWebUrlStatus({ type: "error", message: "Please enter a valid URL (must start with http:// or https://)." });
-                        return;
-                      }
-                      // TODO: Handle submit (API call or state update)
-                      setWebUrlStatus({ type: "success", message: "URL added successfully (not yet implemented)." });
-                      setTimeout(() => {
-                        setIsUrlDialogOpen(false);
-                        setWebUrl("");
-                        setWebUrlStatus({ type: null, message: "" });
-                      }, 1500);
-                    }}
-                    disabled={!webUrl}
-                  >
-                    Add URL
+                  <Button onClick={handleAddWebUrl} disabled={!webUrl || addingUrl}>
+                    {addingUrl ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Adding...
+                      </>
+                    ) : (
+                      "Add URL"
+                    )}
                   </Button>
                 </DialogFooter>
               </DialogContent>
