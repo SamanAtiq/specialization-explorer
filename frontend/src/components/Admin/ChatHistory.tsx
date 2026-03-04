@@ -59,23 +59,16 @@ export default function ChatHistory() {
     const fetchUsers = async () => {
         try {
             setLoadingUsers(true);
-
-            const cached = sessionStorage.getItem("adminChatUsers");
-            if (cached) {
-                setUsers(JSON.parse(cached));
-                setLoadingUsers(false);
-                return;
-            }
-
             const headers = await getAuthHeaders();
-            const res = await fetch(`${import.meta.env.VITE_API_ENDPOINT}/admin/users?limit=100`, { headers });
+
+            const res = await fetch(
+                `${import.meta.env.VITE_API_ENDPOINT}/admin/users?limit=100&offset=0`,
+                { headers }
+            );
             if (!res.ok) throw new Error("Failed to fetch users");
 
             const data = await res.json();
-            const usersData = data || [];
-
-            sessionStorage.setItem("adminChatUsers", JSON.stringify(usersData));
-            setUsers(usersData);
+            setUsers(Array.isArray(data) ? data : []);
         } catch (e) {
             console.error(e);
         } finally {
@@ -86,27 +79,16 @@ export default function ChatHistory() {
     const fetchSessionsForUser = async (userId: string) => {
         try {
             setLoadingSessions(prev => ({ ...prev, [userId]: true }));
-
-            const cachedAll = sessionStorage.getItem("adminChatSessions");
-            const sessionCache = cachedAll ? JSON.parse(cachedAll) : {};
-
-            if (sessionCache[userId]) {
-                setUserSessions(prev => ({ ...prev, [userId]: sessionCache[userId] }));
-                setLoadingSessions(prev => ({ ...prev, [userId]: false }));
-                return;
-            }
-
             const headers = await getAuthHeaders();
-            const res = await fetch(`${import.meta.env.VITE_API_ENDPOINT}/admin/users/${userId}/chat_sessions`, { headers });
+
+            const res = await fetch(
+                `${import.meta.env.VITE_API_ENDPOINT}/admin/users/${userId}/chat_sessions?limit=50&offset=0`,
+                { headers }
+            );
             if (!res.ok) throw new Error("Failed to fetch sessions");
 
             const data = await res.json();
-            const sessionsData = data || [];
-
-            sessionCache[userId] = sessionsData;
-            sessionStorage.setItem("adminChatSessions", JSON.stringify(sessionCache));
-
-            setUserSessions(prev => ({ ...prev, [userId]: sessionsData }));
+            setUserSessions(prev => ({ ...prev, [userId]: Array.isArray(data) ? data : [] }));
         } catch (e) {
             console.error(e);
         } finally {
@@ -117,27 +99,16 @@ export default function ChatHistory() {
     const fetchMessagesForSession = async (sessionId: string) => {
         try {
             setLoadingMessages(true);
-
-            const cachedAll = sessionStorage.getItem("adminChatMessages");
-            const messagesCache = cachedAll ? JSON.parse(cachedAll) : {};
-
-            if (messagesCache[sessionId]) {
-                setMessages(messagesCache[sessionId]);
-                setLoadingMessages(false);
-                return;
-            }
-
             const headers = await getAuthHeaders();
-            const res = await fetch(`${import.meta.env.VITE_API_ENDPOINT}/admin/chat_sessions/${sessionId}/messages`, { headers });
+
+            const res = await fetch(
+                `${import.meta.env.VITE_API_ENDPOINT}/admin/chat_sessions/${sessionId}/messages?limit=200&offset=0`,
+                { headers }
+            );
             if (!res.ok) throw new Error("Failed to fetch messages");
 
             const data = await res.json();
-            const messagesData = data || [];
-
-            messagesCache[sessionId] = messagesData;
-            sessionStorage.setItem("adminChatMessages", JSON.stringify(messagesCache));
-
-            setMessages(messagesData);
+            setMessages(Array.isArray(data) ? data : []);
         } catch (e) {
             console.error(e);
         } finally {
@@ -147,21 +118,20 @@ export default function ChatHistory() {
 
     const toggleUserExpanded = (userId: string) => {
         setExpandedUserIds(prev => {
-            const next = new Set(prev);
-            if (next.has(userId)) {
-                next.delete(userId);
-            } else {
-                next.add(userId);
-                if (!userSessions[userId] && !loadingSessions[userId]) {
-                    fetchSessionsForUser(userId);
-                }
-            }
-            return next;
+        const next = new Set(prev);
+        if (next.has(userId)) {
+            next.delete(userId);
+        } else {
+            next.add(userId);
+            fetchSessionsForUser(userId);
+        }
+        return next;
         });
     };
 
     const handleSessionSelect = (sessionId: string) => {
         setSelectedSessionId(sessionId);
+        setMessages([]); // prevent old messages from showing
         fetchMessagesForSession(sessionId);
     };
 
@@ -173,20 +143,6 @@ export default function ChatHistory() {
         });
     };
 
-    const handleRefresh = () => {
-        sessionStorage.removeItem("adminChatUsers");
-        sessionStorage.removeItem("adminChatSessions");
-        sessionStorage.removeItem("adminChatMessages");
-
-        setUsers([]);
-        setUserSessions({});
-        setExpandedUserIds(new Set());
-        setSelectedSessionId(null);
-        setMessages([]);
-
-        fetchUsers();
-    };
-
     return (
         <div className="space-y-8 max-w-7xl mx-auto animate-in fade-in duration-500 flex flex-col h-[calc(100vh-8rem)]">
             <div className="flex-shrink-0 flex items-center justify-between">
@@ -196,10 +152,6 @@ export default function ChatHistory() {
                         Review user conversations and chat sessions across the platform.
                     </p>
                 </div>
-                <Button variant="outline" size="sm" onClick={handleRefresh} className="flex items-center gap-2">
-                    <RefreshCw size={14} />
-                    Refresh Data
-                </Button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 min-h-0">
