@@ -144,7 +144,7 @@ def fetch_system_config(db_connection) -> Dict[str, Any]:
         # Fetch System Settings
         with db_connection.cursor() as cur:
             cur.execute("""
-                SELECT max_messages_per_session, 
+                SELECT max_messages_per_session,
                        min_messages_before_suggest,
                        max_characters_per_user_message,
                        max_characters_per_ai_message,
@@ -163,7 +163,7 @@ def fetch_system_config(db_connection) -> Dict[str, Any]:
                     'max_characters_per_user_message': row[2],
                     'max_characters_per_ai_message': row[3],
                     'temperature': float(row[4]) if row[4] is not None else 0.7,
-                    'top_p': float(row[5]) if row[5] is not None else 0.9, 
+                    'top_p': float(row[5]) if row[5] is not None else 0.9,
                     'specialization_list': row[6]
                 }
     except Exception as e:

@@ -8,6 +8,7 @@ from helpers.crud import (
 from helpers.logic import get_current_prompt
 from helpers.bedrock import retrieve_documents, format_context_for_prompt
 import helpers.config as config
+from helpers.token_limits import check_limit, record_usage
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -128,7 +129,22 @@ def get_response(
     save_user_message: bool = True
 ) -> Dict[str, Any]:
     
+    usage_info = {}
+    is_under_limit = True
+
     try:
+        if user_id:
+            is_under_limit, usage_info = check_limit(user_id, db_connection)
+            if not is_under_limit:
+                return {
+                    "response": "Daily token limit exceeded. Please try again tomorrow.",
+                    "sources_used": [],
+                    "sessionId": chat_session_id,
+                    "is_first_message": False,
+                    "token_limit_exceeded": True,
+                    "token_usage": usage_info
+                }
+
         bedrock_messages, full_system_prompt, sources = _prepare_conversation(
             query, knowledge_base_id, bedrock_region, chat_session_id, user_id, db_connection,
             save_user_message=save_user_message
@@ -156,9 +172,13 @@ def get_response(
 
     _save_ai_response(db_connection, chat_session_id, answer_text, sources)
 
+    if user_id and answer_text and not answer_text.startswith("I encountered an error"):
+        usage_info = record_usage(user_id, answer_text, db_connection)
+
     return {
         "response": answer_text,
         "sources_used": sources,
         "sessionId": chat_session_id,
-        "is_first_message": False
+        "is_first_message": False,
+        "token_usage": usage_info
     }

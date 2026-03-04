@@ -20,6 +20,7 @@ MAX_MESSAGES_PER_SESSION = 20
 MIN_EXCHANGES_BEFORE_SUGGEST = 4
 MAX_CHARACTERS_PER_USER_MESSAGE = 2000
 MAX_CHARACTERS_PER_AI_MESSAGE = 5000
+DAILY_TOKEN_LIMIT = 1500
 
 # Bedrock Configuration
 SEARCH_TYPE = "HYBRID"
@@ -75,6 +76,7 @@ def load_config(db_connection):
     global KB_ID
     global SPEC_LIST
     global SPEC_PROMPT
+    global DAILY_TOKEN_LIMIT
 
     if _CONFIG_LOADED:
         return
@@ -104,6 +106,7 @@ def load_config(db_connection):
         TEMPERATURE = settings.get('temperature', TEMPERATURE)
         TOP_P = settings.get('top_p', TOP_P)
         SPEC_LIST = settings.get('specialization_list', SPEC_LIST)
+        # DAILY_TOKEN_LIMIT = settings.get('daily_token_limit', DAILY_TOKEN_LIMIT)
     
     # 2. Update System Messages
     msgs = data.get('messages', {})
