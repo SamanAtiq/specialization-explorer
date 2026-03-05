@@ -37,6 +37,18 @@ export default function AIChatPage() {
     null
   );
 
+  const [isTokenLimitReached, setIsTokenLimitReached] = useState(false);
+  const [tokenResetTime, setTokenResetTime] = useState<string | null>(null);
+
+  const formatResetTime = (isoString: string) => {
+    try {
+      const date = new Date(isoString);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return null;
+    }
+  };
+
   const { userId } = useUser();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -209,11 +221,23 @@ export default function AIChatPage() {
           if (message.session_name && activeChatSessionId) {
             updateChatSessionName(activeChatSessionId, message.session_name);
           }
+          if (message.token_usage?.remaining === 0) {
+            setIsTokenLimitReached(true);
+            if (message.token_usage.reset_at) {
+              setTokenResetTime(formatResetTime(message.token_usage.reset_at));
+            }
+          }
           break;
 
         case "error":
           setIsStreaming(false);
           setStreamingMessageId(null);
+          if (message.error === 'TOKEN_LIMIT_EXCEEDED') {
+            setIsTokenLimitReached(true);
+            if (message.token_usage?.reset_at) {
+              setTokenResetTime(formatResetTime(message.token_usage.reset_at));
+            }
+          }
           if (streamingMessageId) {
             setMessages((prev) =>
               prev.map((msg) =>
@@ -412,9 +436,28 @@ export default function AIChatPage() {
           }
         );
 
-        if (!response.ok) throw new Error("Failed to generate response");
+        if (!response.ok) {
+          if (response.status === 429) {
+            const errData = await response.json();
+            if (errData.error === 'TOKEN_LIMIT_EXCEEDED') {
+              setIsTokenLimitReached(true);
+              if (errData.token_usage?.reset_at) {
+                setTokenResetTime(formatResetTime(errData.token_usage.reset_at));
+              }
+              throw new Error(errData.message || "Token limit exceeded");
+            }
+          }
+          throw new Error("Failed to generate response");
+        }
 
         const data = await response.json();
+
+        if (data.token_usage?.remaining === 0) {
+          setIsTokenLimitReached(true);
+          if (data.token_usage.reset_at) {
+            setTokenResetTime(formatResetTime(data.token_usage.reset_at));
+          }
+        }
 
         setMessages((prev) =>
           prev.map((msg) =>
@@ -557,11 +600,28 @@ export default function AIChatPage() {
       );
 
       if (!response.ok) {
+        if (response.status === 429) {
+          const errData = await response.json();
+          if (errData.error === 'TOKEN_LIMIT_EXCEEDED') {
+            setIsTokenLimitReached(true);
+            if (errData.token_usage?.reset_at) {
+              setTokenResetTime(formatResetTime(errData.token_usage.reset_at));
+            }
+            throw new Error(errData.message || "Token limit exceeded");
+          }
+        }
         throw new Error("Failed to generate response");
       }
 
       const data = await response.json();
       console.log("Data: ", data);
+
+      if (data.token_usage?.remaining === 0) {
+        setIsTokenLimitReached(true);
+        if (data.token_usage.reset_at) {
+          setTokenResetTime(formatResetTime(data.token_usage.reset_at));
+        }
+      }
 
       // Update the bot message with the complete response
       setMessages((prev) =>
@@ -678,8 +738,11 @@ export default function AIChatPage() {
               <AiChatInput
                 value={message}
                 onChange={(val: string) => setMessage(val)}
-                placeholder={"TODO: need to change placeholder value later"}
+                placeholder={isTokenLimitReached
+                  ? `Daily limit reached. Resets at ${tokenResetTime || 'soon'}`
+                  : "Message Specialization Explorer..."}
                 onSend={sendMessage}
+                disabled={isTokenLimitReached}
               />
             </div>
 

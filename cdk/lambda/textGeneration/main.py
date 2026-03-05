@@ -85,9 +85,16 @@ def handler(event, context=None):
         response_body = {
             "response": response_data.get("response", ""),
             "sources": response_data.get("sources_used", []),
-            "chat_session_id": response_data.get("sessionId")
+            "chat_session_id": response_data.get("sessionId"),
+            "token_usage": response_data.get("token_usage", {})
         }
         
+        status_code = 200
+        if response_data.get("token_limit_exceeded"):
+            status_code = 429
+            response_body["error"] = "TOKEN_LIMIT_EXCEEDED"
+            response_body["message"] = response_body["response"]
+            
         # Send WebSocket response if connection_id is present
         request_context = event.get('requestContext', {})
         connection_id = request_context.get('connectionId')
@@ -99,33 +106,47 @@ def handler(event, context=None):
                 try:
                     apigw_management = boto3.client('apigatewaymanagementapi', endpoint_url=endpoint_url)
                     
-                    # 1. Send text chunk
-                    chunk_msg = {
-                        'type': 'chunk',
-                        'content': response_body['response']
-                    }
-                    apigw_management.post_to_connection(
-                        ConnectionId=connection_id,
-                        Data=json.dumps(chunk_msg)
-                    )
-                    
-                    # 2. Send complete message with sources
-                    complete_msg = {
-                        'type': 'complete',
-                        'sources': response_body['sources'],
-                        'chat_session_id': response_body['chat_session_id']
-                    }
-                    apigw_management.post_to_connection(
-                        ConnectionId=connection_id,
-                        Data=json.dumps(complete_msg)
-                    )
-                    
-                    logger.info(f"Sent WebSocket responses (chunk+complete) to {connection_id}")
+                    if status_code == 429:
+                        # Send specific error over WS for token limits
+                        error_msg = {
+                            'type': 'error',
+                            'error': 'TOKEN_LIMIT_EXCEEDED',
+                            'message': response_body['message'],
+                            'token_usage': response_body.get('token_usage', {})
+                        }
+                        apigw_management.post_to_connection(
+                            ConnectionId=connection_id,
+                            Data=json.dumps(error_msg)
+                        )
+                        logger.info(f"Sent WebSocket token limit error to {connection_id}")
+                    else:
+                        # 1. Send text chunk
+                        chunk_msg = {
+                            'type': 'chunk',
+                            'content': response_body['response']
+                        }
+                        apigw_management.post_to_connection(
+                            ConnectionId=connection_id,
+                            Data=json.dumps(chunk_msg)
+                        )
+                        
+                        # 2. Send complete message with sources
+                        complete_msg = {
+                            'type': 'complete',
+                            'sources': response_body['sources'],
+                            'chat_session_id': response_body['chat_session_id'],
+                            'token_usage': response_body.get('token_usage', {})
+                        }
+                        apigw_management.post_to_connection(
+                            ConnectionId=connection_id,
+                            Data=json.dumps(complete_msg)
+                        )
+                        logger.info(f"Sent WebSocket responses (chunk+complete) to {connection_id}")
                 except Exception as e:
                     logger.error(f"Failed to post to WebSocket connection: {e}")
 
         return {
-            'statusCode': 200,
+            'statusCode': status_code,
             'headers': {
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*',
