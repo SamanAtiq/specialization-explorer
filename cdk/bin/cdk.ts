@@ -48,16 +48,10 @@ const cicdStack = new CICDStack(app, `${StackPrefix}-CICD`, {
       functionName: `${StackPrefix}-Api-TextGenLambdaDockerFunction`,
       sourceDir: "cdk/lambda/textGeneration",
     },
-    {
-      name: "practiceMaterial",
-      functionName: `${StackPrefix}-Api-PracticeMaterialLambdaDockerFunction`,
-      sourceDir: "cdk/lambda/practiceMaterial",
-    },
   ],
   pathFilters: [
     "cdk/lambda/dataIngestion/**",
     "cdk/lambda/textGeneration/**",
-    "cdk/lambda/practiceMaterial/**",
   ],
 });
 

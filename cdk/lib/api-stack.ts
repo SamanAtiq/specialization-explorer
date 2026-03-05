@@ -321,12 +321,6 @@ export class ApiGatewayStack extends cdk.Stack {
             throttlingBurstLimit: 200,
           },
 
-          // EXPENSIVE: Practice material generation (AI calls to Bedrock)
-          "/textbooks/*/practice_materials/POST": {
-            throttlingRateLimit: 5, // Only 5/sec (down from 100)
-            throttlingBurstLimit: 10, // Only 10 concurrent (down from 200)
-          },
-
           // MODERATE: Chat endpoints (streaming AI)
           "/textbooks/*/chat_sessions/POST": {
             throttlingRateLimit: 20, // 20/sec (down from 100)
@@ -488,40 +482,19 @@ export class ApiGatewayStack extends cdk.Stack {
               limit: 20, // 20 reqs / 5 mins prevents bots while allowing fast human chat
               aggregateKeyType: "IP",
               scopeDownStatement: {
-                // Apply to practice_materials and chat_sessions endpoints
-                orStatement: {
-                  statements: [
+                // Apply to chat_sessions endpoints
+                byteMatchStatement: {
+                  searchString: "/chat_sessions",
+                  fieldToMatch: {
+                    uriPath: {},
+                  },
+                  textTransformations: [
                     {
-                      byteMatchStatement: {
-                        searchString: "/practice_materials",
-                        fieldToMatch: {
-                          uriPath: {},
-                        },
-                        textTransformations: [
-                          {
-                            priority: 0,
-                            type: "NONE",
-                          },
-                        ],
-                        positionalConstraint: "CONTAINS",
-                      },
-                    },
-                    {
-                      byteMatchStatement: {
-                        searchString: "/chat_sessions",
-                        fieldToMatch: {
-                          uriPath: {},
-                        },
-                        textTransformations: [
-                          {
-                            priority: 0,
-                            type: "NONE",
-                          },
-                        ],
-                        positionalConstraint: "CONTAINS",
-                      },
+                      priority: 0,
+                      type: "NONE",
                     },
                   ],
+                  positionalConstraint: "CONTAINS",
                 },
               },
             },
@@ -1155,23 +1128,7 @@ export class ApiGatewayStack extends cdk.Stack {
     );
     */
 
-    const practiceMaterialImageWaiter = new cdk.CustomResource(
-      this,
-      "PracticeMaterialImageWaiter",
-      {
-        serviceToken: ecrImageWaiterFunction.functionArn,
-        properties: {
-          RepositoryName:
-            props.ecrRepositories["practiceMaterial"].repositoryName,
-          ImageTag: "latest",
-          MaxRetries: "60",
-          RetryDelaySeconds: "30",
-          CodeBuildProjectName:
-            props.codeBuildProjects?.["practiceMaterial"]?.projectName,
-          TriggerBuildOnMissing: "true",
-        },
-      }
-    );
+
 
     const lambdaTextGen = new lambda.Function(
       this,
@@ -1541,30 +1498,7 @@ export class ApiGatewayStack extends cdk.Stack {
       .defaultChild as lambda.CfnFunction;
     cfnLambda_faq.overrideLogicalId("faqFunction");
 
-    // H5P Export Lambda Function
-    const lambdaH5pExportFunction = new lambda.Function(
-      this,
-      `${id}-h5pExportFunction`,
-      {
-        runtime: lambda.Runtime.PYTHON_3_12,
-        code: lambda.Code.fromAsset("lambda/h5pExport"),
-        handler: "index.handler",
-        timeout: Duration.seconds(30),
-        memorySize: 512,
-        functionName: `${id}-h5pExportFunction`,
-        role: lambdaRole,
-      }
-    );
 
-    lambdaH5pExportFunction.addPermission("AllowApiGatewayInvoke", {
-      principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
-      action: "lambda:InvokeFunction",
-      sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/textbooks/*/practice_materials/export-h5p`,
-    });
-
-    const cfnLambda_h5pExport = lambdaH5pExportFunction.node
-      .defaultChild as lambda.CfnFunction;
-    cfnLambda_h5pExport.overrideLogicalId("h5pExportFunction");
 
     const lambdaChatSessionFunction = new lambda.Function(
       this,
@@ -1720,7 +1654,6 @@ export class ApiGatewayStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(30),
       environment: {
         TEXT_GEN_FUNCTION_NAME: lambdaTextGen.functionName,
-        // PRACTICE_MATERIAL_FUNCTION_NAME added after function definition
       },
       functionName: `${id}-DefaultFunction`,
     });
@@ -1737,12 +1670,10 @@ export class ApiGatewayStack extends cdk.Stack {
     connectFunction.addToRolePolicy(wsPolicy);
     disconnectFunction.addToRolePolicy(wsPolicy);
     defaultFunction.addToRolePolicy(wsPolicy);
-    // practiceMaterialDockerFunc wsPolicy added after function definition
 
     jwtSecret.grantRead(connectFunction);
     // Grant the default function permission to invoke the text generation function
     lambdaTextGen.grantInvoke(defaultFunction);
-    // practiceMaterialDockerFunc.grantInvoke added after function definition
 
     // Routes
     new apigatewayv2.WebSocketRoute(this, `${id}-ConnectRoute`, {
@@ -1845,117 +1776,6 @@ export class ApiGatewayStack extends cdk.Stack {
       .defaultChild as lambda.CfnFunction;
     cfnLambda_sharedUserPrompt.overrideLogicalId("sharedUserPromptFunction");
 
-    // Practice Material Lambda (Docker)
-    const practiceMaterialDockerFunc = new lambda.DockerImageFunction(
-      this,
-      `${id}-PracticeMaterialLambdaDockerFunction`,
-      {
-        code: lambda.DockerImageCode.fromEcr(
-          props.ecrRepositories["practiceMaterial"],
-          { tagOrDigest: "latest" }
-        ),
-        memorySize: 1024,
-        timeout: cdk.Duration.seconds(300),
-        vpc: vpcStack.vpc,
-        functionName: `${id}-PracticeMaterialLambdaDockerFunction`,
-        environment: {
-          REGION: this.region,
-          // DB + RDS for embeddings access
-          SM_DB_CREDENTIALS: db.secretPathUser.secretName,
-          RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
-          // Models - SSM parameter names (not hardcoded values)
-          PRACTICE_MATERIAL_MODEL_PARAM: bedrockLLMParameter.parameterName,
-          EMBEDDING_MODEL_PARAM: embeddingModelParameter.parameterName,
-          BEDROCK_REGION_PARAM: bedrockRegionParameter.parameterName,
-          // Guardrails
-          GUARDRAIL_ID_PARAM: guardrailParameter.parameterName,
-        },
-        role: lambdaRole,
-      }
-    );
 
-    // API Gateway permission
-    practiceMaterialDockerFunc.addPermission("AllowApiGatewayInvoke", {
-      principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
-      action: "lambda:InvokeFunction",
-      sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/textbooks/*/practice_materials*`,
-    });
-
-    // Logical ID override - USE NEW ID to force CloudFormation to replace old ZIP function
-    const cfnPracticeMaterialDocker = practiceMaterialDockerFunc.node
-      .defaultChild as lambda.CfnFunction;
-    cfnPracticeMaterialDocker.overrideLogicalId("PracticeMaterialDockerFunc");
-
-    // Add dependency to ensure image exists in ECR before Lambda is created
-    cfnPracticeMaterialDocker.addDependency(
-      practiceMaterialImageWaiter.node.defaultChild as cdk.CfnResource
-    );
-
-    // Provisioned Concurrency enabled with 1 execution to improve cold start performance
-    // removed for now since we don't have enough quota
-    const practiceMaterialAlias = new lambda.Alias(
-      this,
-      `${id}-PracticeMaterialAlias`,
-      {
-        aliasName: "live",
-        version: practiceMaterialDockerFunc.currentVersion,
-        // provisionedConcurrentExecutions: 1,
-      }
-    );
-
-    // WebSocket streaming support - add environment variable and permissions
-    // (must be after practiceMaterialDockerFunc is defined)
-    // Use alias to leverage provisioned concurrency
-    defaultFunction.addEnvironment(
-      "PRACTICE_MATERIAL_FUNCTION_NAME",
-      practiceMaterialAlias.functionName
-    );
-    practiceMaterialDockerFunc.addToRolePolicy(wsPolicy);
-    practiceMaterialAlias.grantInvoke(defaultFunction);
-
-    // IAM: Secrets, SSM, Bedrock
-
-    practiceMaterialDockerFunc.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["secretsmanager:GetSecretValue"],
-        resources: [
-          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*`,
-        ],
-      })
-    );
-
-    practiceMaterialDockerFunc.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["ssm:GetParameter"],
-        resources: [
-          bedrockLLMParameter.parameterArn,
-          embeddingModelParameter.parameterArn,
-          bedrockRegionParameter.parameterArn,
-          guardrailParameter.parameterArn,
-          guardrailParameter.parameterArn,
-        ],
-      })
-    );
-
-    practiceMaterialDockerFunc.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["bedrock:InvokeModel", "bedrock:ApplyGuardrail"],
-        resources: [
-          // Llama 3 model (for practice material generation)
-          `arn:aws:bedrock:${this.region}::foundation-model/meta.llama3-70b-instruct-v1:0`,
-          // Titan embeddings model (for retrieval)
-          `arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-text-v2:0`,
-          // Cohere embeddings model (for retrieval)
-          `arn:aws:bedrock:us-east-1::foundation-model/cohere.embed-v4:0`,
-          // Guardrail
-          `arn:aws:bedrock:${this.region}:${this.account}:guardrail/${bedrockGuardrail.attrGuardrailId}`,
-          // Guardrail
-          `arn:aws:bedrock:${this.region}:${this.account}:guardrail/${bedrockGuardrail.attrGuardrailId}`,
-        ],
-      })
-    );
   }
 }
