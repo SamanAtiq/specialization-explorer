@@ -117,14 +117,14 @@ export default function ChatHistory() {
 
     const toggleUserExpanded = (userId: string) => {
         setExpandedUserIds(prev => {
-        const next = new Set(prev);
-        if (next.has(userId)) {
-            next.delete(userId);
-        } else {
-            next.add(userId);
-            fetchSessionsForUser(userId);
-        }
-        return next;
+            const next = new Set(prev);
+            if (next.has(userId)) {
+                next.delete(userId);
+            } else {
+                next.add(userId);
+                fetchSessionsForUser(userId);
+            }
+            return next;
         });
     };
 
@@ -283,7 +283,7 @@ export default function ChatHistory() {
                                             <div className={cn(
                                                 "p-5 rounded-2xl shadow-sm text-[15px] whitespace-pre-wrap leading-relaxed",
                                                 isUser
-                                                    ? "bg-[#2c5f7c] text-white rounded-tr-sm"
+                                                    ? "bg-primary text-primary-foreground rounded-tr-sm"
                                                     : "bg-gray-50 border border-gray-200 text-gray-800 rounded-tl-sm shadow-md"
                                             )}>
                                                 {msg.content}
@@ -291,7 +291,7 @@ export default function ChatHistory() {
 
                                             {/* Display Sources (if AI and sources exist) */}
                                             {msg.sender === "AI" && msg.sources && (
-                                                <div className="mt-2 pl-2 border-l-2 border-[#2c5f7c]/20 text-xs text-gray-500">
+                                                <div className="mt-2 pl-2 border-l-2 border-primary/20 text-xs text-gray-500">
                                                     Sources attached
                                                 </div>
                                             )}
