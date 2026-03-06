@@ -38,7 +38,7 @@ export class ApiGatewayStack extends cdk.Stack {
   public readonly apiGW_basedURL: string;
   private eventApi: appsync.GraphqlApi;
   public readonly secret: secretsmanager.ISecret;
-  public getEndpointUrl = () => this.api.url;
+  public getEndpointUrl = () => this.api.url.replace(/\/+$/, '');
   public getUserPoolId = () => this.userPool.userPoolId;
   public getEventApiUrl = () => this.eventApi.graphqlUrl;
   public getUserPoolClientId = () => this.appClient.userPoolClientId;
@@ -1154,8 +1154,8 @@ export class ApiGatewayStack extends cdk.Stack {
         `arn:aws:bedrock:us-east-1::foundation-model/cohere.embed-v4:0`,
         // Mistral Large
         `arn:aws:bedrock:${this.region}::foundation-model/mistral.mistral-large-2402-v1:0`,
-        // Claude Haiku 3 (Direct Foundation Models)
-        `arn:aws:bedrock:${this.region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0`,
+        // Claude Sonnet 3 (Direct Foundation Models)
+        `arn:aws:bedrock:${this.region}::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0`,
         // Knowledge Base
         `arn:aws:bedrock:${this.region}:${this.account}:knowledge-base/*`,
         // Guardrail

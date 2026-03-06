@@ -12,7 +12,7 @@ _CONFIG_LOADED = False
 # ------------------------------------------------------------------
 
 KB_ID = None
-MODEL_ARN = "mistral.mistral-large-2402-v1:0"
+MODEL_ARN = "anthropic.claude-3-sonnet-20240229-v1:0"
 BEDROCK_REGION = "ca-central-1"
 
 # Chat Configuration
