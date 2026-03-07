@@ -57,8 +57,8 @@ const parseBody = (body) => {
 
 const handleError = (error, response) => {
   response.statusCode = 500;
-  console.log(error);
-  response.body = JSON.stringify(error.message);
+  console.error("Internal server error:", error);
+  response.body = JSON.stringify({ error: "Internal server error" });
 };
 
 exports.handler = async (event) => {

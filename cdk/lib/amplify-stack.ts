@@ -82,7 +82,7 @@ export class AmplifyStack extends cdk.Stack {
 
     amplifyApp.addCustomRule({
       source: "/<*>",
-      target: "	/index.html",
+      target: "\t/index.html",
       status: RedirectStatus.NOT_FOUND_REWRITE,
     });
 

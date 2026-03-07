@@ -12,7 +12,7 @@ const initConnection = async () => {
       });
       const secretResponse = await secretsManager.send(getSecretValueCommand);
       const credentials = JSON.parse(secretResponse.SecretString);
-      
+
       const connectionConfig = {
         host: process.env.RDS_PROXY_ENDPOINT,
         port: credentials.port,
@@ -21,7 +21,7 @@ const initConnection = async () => {
         database: credentials.dbname,
         ssl: { rejectUnauthorized: false },
       };
-      
+
       sqlConnection = postgres(connectionConfig);
       await sqlConnection`SELECT 1`;
       console.log("Database connection initialized successfully");
@@ -52,19 +52,19 @@ const parseBody = (body) => {
 
 const handleError = (error, response) => {
   response.statusCode = 500;
-  console.log(error);
-  response.body = JSON.stringify(error.message);
+  console.error("Internal server error:", error);
+  response.body = JSON.stringify({ error: "Internal server error" });
 };
 
 exports.handler = async (event) => {
   const response = createResponse();
   let data;
-  
+
   try {
     // Ensure connection is initialized before proceeding
     await initConnection();
     const pathData = event.httpMethod + " " + event.resource;
-    
+
     switch (pathData) {
       case "GET /textbooks/{textbook_id}/shared_prompts": {
         const sharedTextbookId = event.pathParameters?.textbook_id;
@@ -119,7 +119,7 @@ exports.handler = async (event) => {
         response.body = JSON.stringify(data);
         break;
       }
-        
+
       case "POST /textbooks/{textbook_id}/shared_prompts":
         const postSharedTextbookId = event.pathParameters?.textbook_id;
         if (!postSharedTextbookId) {
@@ -127,27 +127,27 @@ exports.handler = async (event) => {
           response.body = JSON.stringify({ error: "Textbook ID is required" });
           break;
         }
-        
+
         const createData = parseBody(event.body);
         const { title, prompt_text, owner_session_id, owner_user_id, role, visibility, tags, metadata } = createData;
-        
+
         if (!prompt_text) {
           response.statusCode = 400;
           response.body = JSON.stringify({ error: "prompt_text is required" });
           break;
         }
-        
+
         const newPrompt = await sqlConnection`
           INSERT INTO shared_user_prompts (title, prompt_text, owner_session_id, owner_user_id, textbook_id, role, visibility, tags, metadata)
           VALUES (${title || null}, ${prompt_text}, ${owner_session_id || null}, ${owner_user_id || null}, ${postSharedTextbookId}, ${role || null}, ${visibility || 'public'}, ${tags || []}, ${metadata || {}})
           RETURNING id, title, prompt_text, owner_session_id, owner_user_id, textbook_id, role, visibility, tags, created_at, updated_at, metadata
         `;
-        
+
         response.statusCode = 201;
         data = newPrompt[0];
         response.body = JSON.stringify(data);
         break;
-        
+
       case "GET /shared_prompts/{shared_prompt_id}":
         const promptId = event.pathParameters?.shared_prompt_id;
         if (!promptId) {
@@ -155,7 +155,7 @@ exports.handler = async (event) => {
           response.body = JSON.stringify({ error: "Prompt ID is required" });
           break;
         }
-        
+
         const prompt = await sqlConnection`
           SELECT 
             id, title, prompt_text, owner_session_id, owner_user_id, 
@@ -163,17 +163,17 @@ exports.handler = async (event) => {
           FROM shared_user_prompts
           WHERE id = ${promptId}
         `;
-        
+
         if (prompt.length === 0) {
           response.statusCode = 404;
           response.body = JSON.stringify({ error: "Prompt not found" });
           break;
         }
-        
+
         data = prompt[0];
         response.body = JSON.stringify(data);
         break;
-        
+
       case "PUT /shared_prompts/{shared_prompt_id}":
         const updatePromptId = event.pathParameters?.shared_prompt_id;
         if (!updatePromptId) {
@@ -181,10 +181,10 @@ exports.handler = async (event) => {
           response.body = JSON.stringify({ error: "Prompt ID is required" });
           break;
         }
-        
+
         const updateData = parseBody(event.body);
         const { title: updateTitle, prompt_text: updatePromptText, visibility: updateVisibility, tags: updateTags, metadata: updateMetadata, reported: updateReported } = updateData;
-        
+
         const updated = await sqlConnection`
           UPDATE shared_user_prompts 
           SET title = ${updateTitle}, prompt_text = ${updatePromptText}, visibility = ${updateVisibility}, 
@@ -193,7 +193,7 @@ exports.handler = async (event) => {
           RETURNING id, title, prompt_text, owner_session_id, owner_user_id, 
                     textbook_id, role, visibility, tags, created_at, updated_at, metadata, reported
         `;
-        
+
         if (updated.length === 0) {
           response.statusCode = 404;
           response.body = JSON.stringify({ error: "Prompt not found" });
@@ -204,7 +204,7 @@ exports.handler = async (event) => {
         data = updated[0];
         response.body = JSON.stringify(data);
         break;
-        
+
       case "DELETE /shared_prompts/{shared_prompt_id}":
         const deletePromptId = event.pathParameters?.shared_prompt_id;
         if (!deletePromptId) {
@@ -212,21 +212,21 @@ exports.handler = async (event) => {
           response.body = JSON.stringify({ error: "Prompt ID is required" });
           break;
         }
-        
+
         const deleted = await sqlConnection`
           DELETE FROM shared_user_prompts WHERE id = ${deletePromptId} RETURNING id
         `;
-        
+
         if (deleted.length === 0) {
           response.statusCode = 404;
           response.body = JSON.stringify({ error: "Prompt not found" });
           break;
         }
-        
+
         response.statusCode = 204;
         response.body = "";
         break;
-        
+
       case "POST /shared_prompts/{shared_prompt_id}/report":
         const reportPromptId = event.pathParameters?.shared_prompt_id;
         if (!reportPromptId) {
@@ -234,27 +234,27 @@ exports.handler = async (event) => {
           response.body = JSON.stringify({ error: "Prompt ID is required" });
           break;
         }
-        
+
         const reportData = parseBody(event.body);
         const { comment } = reportData;
-        
+
         // Check if prompt exists
         const existingPrompt = await sqlConnection`
           SELECT id FROM shared_user_prompts WHERE id = ${reportPromptId}
         `;
-        
+
         if (existingPrompt.length === 0) {
           response.statusCode = 404;
           response.body = JSON.stringify({ error: "Prompt not found" });
           break;
         }
-        
+
         // Update the prompt to mark it as reported and store report details in metadata
         const reportMetadata = {
           comment: comment || '',
           reported_at: new Date().toISOString()
         };
-        
+
         const reportedPrompt = await sqlConnection`
           UPDATE shared_user_prompts
           SET 
@@ -268,24 +268,24 @@ exports.handler = async (event) => {
           WHERE id = ${reportPromptId}
           RETURNING id, title, reported, metadata
         `;
-        
+
         data = {
           id: reportedPrompt[0].id,
           reported_at: reportMetadata.reported_at,
           message: "Prompt has been reported successfully"
         };
-        
+
         response.statusCode = 200;
         response.body = JSON.stringify(data);
         break;
-        
+
       default:
         throw new Error(`Unsupported route: "${pathData}"`);
     }
   } catch (error) {
     handleError(error, response);
   }
-  
+
   console.log(response);
   return response;
 };
