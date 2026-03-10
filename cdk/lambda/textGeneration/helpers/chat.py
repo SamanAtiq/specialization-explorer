@@ -13,6 +13,57 @@ from helpers.token_limits import check_limit, record_usage
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+def _rewrite_query_for_retrieval(
+    raw_query: str,
+    chat_history: List[Dict[str, Any]],
+    bedrock_region: str,
+    model_arn: str
+) -> str:
+    """
+    Uses a fast LLM call to rewrite a conversational user query into a
+    keyword-rich search query optimized for vector database retrieval.
+    Falls back to the raw query on any error.
+    """
+    # Build a condensed history string (last few exchanges only)
+    history_lines = []
+    for msg in chat_history[-6:]:
+        role = "User" if msg["sender"] == "user" else "Assistant"
+        history_lines.append(f"{role}: {msg['content']}")
+    history_block = "\n".join(history_lines) if history_lines else "(no prior conversation)"
+
+    rewrite_prompt = (
+        "You are a search query optimizer for a university specialization database. "
+        "Given the conversation history and the user's latest message, generate a short, "
+        "keyword-rich search query to find relevant university specialization documents. "
+        "Focus on academic subjects, career goals, and interests mentioned. "
+        "Output ONLY the search query — no explanation, no quotes."
+    )
+
+    user_message = f"""<conversation_history>
+{history_block}
+</conversation_history>
+
+<latest_user_message>
+{raw_query}
+</latest_user_message>
+
+Generate the optimized search query:"""
+
+    try:
+        bedrock_runtime = boto3.client("bedrock-runtime", region_name=bedrock_region)
+        response = bedrock_runtime.converse(
+            modelId=model_arn,
+            messages=[{"role": "user", "content": [{"text": user_message}]}],
+            system=[{"text": rewrite_prompt}],
+            inferenceConfig={"maxTokens": 100, "temperature": 0.0}
+        )
+        rewritten = response["output"]["message"]["content"][0]["text"].strip()
+        logger.info(f"Query rewrite: '{raw_query}' -> '{rewritten}'")
+        return rewritten if rewritten else raw_query
+    except Exception as e:
+        logger.warning(f"Query rewrite failed, using raw query: {e}")
+        return raw_query
+
 def _prepare_conversation(
     query: str,
     knowledge_base_id: str,
@@ -59,33 +110,41 @@ def _prepare_conversation(
         db_connection
     )
 
-    # 5. RAG Retrieval
+    # 5. Rewrite query for better retrieval
+    search_query = _rewrite_query_for_retrieval(
+        raw_query=query,
+        chat_history=raw_history,
+        bedrock_region=bedrock_region,
+        model_arn=config.MODEL_ARN
+    )
+
+    # 6. RAG Retrieval (using rewritten query)
     sources = retrieve_documents(
-        query, 
+        search_query, 
         knowledge_base_id, 
         bedrock_region, 
         num_retrieval_results, 
         search_type=search_type
     )
     
-    # 6. Build Context
+    # 7. Build Context
     context_block = format_context_for_prompt(sources)
     
-    # 7. Construct Final System Prompt
+    # 8. Construct Final System Prompt
     full_system_prompt = f"""{current_system_prompt}
 
-You have access to the following retrieved information from the university database:
 <retrieved_context>
 {context_block}
 </retrieved_context>
 
-INSTRUCTIONS:
-1. Answer the user's question using the <retrieved_context> if relevant.
+<response_instructions>
+1. Answer the user's question using the retrieved_context if relevant.
 2. If the user is just chatting (e.g. "hello", "thanks"), respond naturally.
 3. ALWAYS ANSWER. Never refuse. If the context is empty, say what you know or ask for clarification.
+</response_instructions>
 """
 
-    # 8. Build Messages
+    # 9. Build Messages
     bedrock_messages = []
     for msg in raw_history:
         role = "user" if msg["sender"] == "user" else "assistant"
@@ -108,7 +167,7 @@ def _save_ai_response(db_connection, chat_session_id: str, answer_text: str, sou
         for s in sources:
             s_copy = s.copy()
             if 'content' in s_copy and isinstance(s_copy['content'], str):
-                s_copy['content'] = s_copy['content'][:200]
+                s_copy['content'] = s_copy['content']
             sources_for_db.append(s_copy)
 
         insert_message(db_connection, chat_session_id, "AI", answer_text, sources_for_db)

@@ -19,19 +19,29 @@ def get_current_prompt(chat_session_id: str, db_connection) -> Tuple[str, int]:
         phase_instructions = config.SUGGESTION_PHASE_PROMPT
         retrieval_count = 8
 
-    # 3. Construct full prompt
-    full_prompt = f"""
-{config.GUARDRAILS}
-
+    # 3. Construct full prompt with XML structure (guardrails last for Anthropic compliance)
+    full_prompt = f"""<role>
 {config.ROLE}
+</role>
 
+<phase>
 {phase_instructions}
+</phase>
 
+<checklist>
 {config.CHECKLIST}
+</checklist>
 
+<instructions>
 {config.INSTRUCTIONS}
+</instructions>
 
+<allowed_specializations>
 {config.SPEC_PROMPT}
-""".strip()
+</allowed_specializations>
+
+<guardrails>
+{config.GUARDRAILS}
+</guardrails>""".strip()
 
     return full_prompt, retrieval_count
