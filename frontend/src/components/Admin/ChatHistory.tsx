@@ -1,9 +1,54 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Bot, User, MessageSquare, ChevronDown, ChevronRight, Clock } from "lucide-react";
+import { Bot, User, MessageSquare, ChevronDown, ChevronRight, Clock, RefreshCw } from "lucide-react";
 import { AuthService } from "@/functions/authService";
 import { cn } from "@/lib/utils";
 
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+const clearAdminCache = () => {
+    Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('admin_chat_')) {
+            localStorage.removeItem(key);
+        }
+    });
+};
+
+const getCachedItem = (key: string) => {
+    try {
+        const item = localStorage.getItem(key);
+        if (!item) return null;
+        const parsed = JSON.parse(item);
+        if (Date.now() - parsed.timestamp > CACHE_TTL) {
+            localStorage.removeItem(key);
+            return null;
+        }
+        return parsed.data;
+    } catch (e) {
+        return null;
+    }
+};
+
+const setCachedItem = (key: string, data: any) => {
+    try {
+        localStorage.setItem(key, JSON.stringify({
+            timestamp: Date.now(),
+            data
+        }));
+    } catch (e) {
+        // Handle quota exceeded
+        console.warn('Local storage full, clearing admin cache');
+        clearAdminCache();
+        try {
+            localStorage.setItem(key, JSON.stringify({
+                timestamp: Date.now(),
+                data
+            }));
+        } catch (e2) {
+            console.error('Failed to cache item after clearing:', e2);
+        }
+    }
+};
 // --- Types ---
 type UserData = {
     id: string;
@@ -55,7 +100,15 @@ export default function ChatHistory() {
         };
     };
 
-    const fetchUsers = async () => {
+    const fetchUsers = async (forceRefresh = false) => {
+        if (!forceRefresh) {
+            const cached = getCachedItem('admin_chat_users');
+            if (cached) {
+                setUsers(cached);
+                return;
+            }
+        }
+
         try {
             setLoadingUsers(true);
             const headers = await getAuthHeaders();
@@ -67,7 +120,9 @@ export default function ChatHistory() {
             if (!res.ok) throw new Error("Failed to fetch users");
 
             const data = await res.json();
-            setUsers(Array.isArray(data) ? data : []);
+            const usersData = Array.isArray(data) ? data : [];
+            setUsers(usersData);
+            setCachedItem('admin_chat_users', usersData);
         } catch (e) {
             console.error(e);
         } finally {
@@ -75,7 +130,16 @@ export default function ChatHistory() {
         }
     };
 
-    const fetchSessionsForUser = async (userId: string) => {
+    const fetchSessionsForUser = async (userId: string, forceRefresh = false) => {
+        const cacheKey = `admin_chat_sessions_${userId}`;
+        if (!forceRefresh) {
+            const cached = getCachedItem(cacheKey);
+            if (cached) {
+                setUserSessions(prev => ({ ...prev, [userId]: cached }));
+                return;
+            }
+        }
+
         try {
             setLoadingSessions(prev => ({ ...prev, [userId]: true }));
             const headers = await getAuthHeaders();
@@ -87,7 +151,9 @@ export default function ChatHistory() {
             if (!res.ok) throw new Error("Failed to fetch sessions");
 
             const data = await res.json();
-            setUserSessions(prev => ({ ...prev, [userId]: Array.isArray(data) ? data : [] }));
+            const sessionsData = Array.isArray(data) ? data : [];
+            setUserSessions(prev => ({ ...prev, [userId]: sessionsData }));
+            setCachedItem(cacheKey, sessionsData);
         } catch (e) {
             console.error(e);
         } finally {
@@ -95,7 +161,16 @@ export default function ChatHistory() {
         }
     };
 
-    const fetchMessagesForSession = async (sessionId: string) => {
+    const fetchMessagesForSession = async (sessionId: string, forceRefresh = false) => {
+        const cacheKey = `admin_chat_messages_${sessionId}`;
+        if (!forceRefresh) {
+            const cached = getCachedItem(cacheKey);
+            if (cached) {
+                setMessages(cached);
+                return;
+            }
+        }
+
         try {
             setLoadingMessages(true);
             const headers = await getAuthHeaders();
@@ -107,7 +182,9 @@ export default function ChatHistory() {
             if (!res.ok) throw new Error("Failed to fetch messages");
 
             const data = await res.json();
-            setMessages(Array.isArray(data) ? data : []);
+            const messagesData = Array.isArray(data) ? data : [];
+            setMessages(messagesData);
+            setCachedItem(cacheKey, messagesData);
         } catch (e) {
             console.error(e);
         } finally {
@@ -142,6 +219,15 @@ export default function ChatHistory() {
         });
     };
 
+    const handleRefresh = () => {
+        clearAdminCache();
+        setExpandedUserIds(new Set());
+        setSelectedSessionId(null);
+        setUserSessions({});
+        setMessages([]);
+        fetchUsers(true);
+    };
+
     return (
         <div className="space-y-8 max-w-7xl mx-auto animate-in fade-in duration-500 flex flex-col h-[calc(100vh-8rem)]">
             <div className="flex-shrink-0 flex items-center justify-between">
@@ -151,6 +237,13 @@ export default function ChatHistory() {
                         Review user conversations and chat sessions across the platform.
                     </p>
                 </div>
+                <button
+                    onClick={handleRefresh}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors shadow-sm"
+                >
+                    <RefreshCw size={16} className={loadingUsers ? "animate-spin text-[#2c5f7c]" : ""} />
+                    Refresh Data
+                </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 min-h-0">
