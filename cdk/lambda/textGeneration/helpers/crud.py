@@ -95,7 +95,8 @@ def insert_message(
     chat_session_id: str,
     sender: str,
     content: str,
-    sources: Optional[List[Dict[str, Any]]] = None
+    sources: Optional[List[Dict[str, Any]]] = None,
+    warning: Optional[str] = None
 ) -> str:
     message_id = str(uuid.uuid4())
     sources_json = json.dumps(sources or [])
@@ -103,10 +104,10 @@ def insert_message(
         with db_connection.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO chat_messages (id, chat_session_id, sender, content, sources, created_at)
-                VALUES (%s, %s, %s, %s, %s::jsonb, NOW())
+                INSERT INTO chat_messages (id, chat_session_id, sender, content, sources, warning, created_at)
+                VALUES (%s, %s, %s, %s, %s::jsonb, %s, NOW())
                 """,
-                (message_id, chat_session_id, sender, content, sources_json)
+                (message_id, chat_session_id, sender, content, sources_json, warning)
             )
     except Exception as e:
         logger.error(f"insert_message failed: {e}")

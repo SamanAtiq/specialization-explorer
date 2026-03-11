@@ -436,6 +436,9 @@ export default function AIChatPage() {
           }
         );
 
+        console.log("YOOOOOOOOOOOO")
+        console.log(response)
+
         if (!response.ok) {
           if (response.status === 429) {
             const errData = await response.json();

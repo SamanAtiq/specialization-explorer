@@ -85,6 +85,7 @@ def handler(event, context=None):
         response_body = {
             "response": response_data.get("response", ""),
             "sources": response_data.get("sources_used", []),
+            "warning": response_data.get("warning"),
             "chat_session_id": response_data.get("sessionId"),
             "token_usage": response_data.get("token_usage", {})
         }
@@ -134,6 +135,7 @@ def handler(event, context=None):
                         complete_msg = {
                             'type': 'complete',
                             'sources': response_body['sources'],
+                            'warning': response_body.get('warning'),
                             'chat_session_id': response_body['chat_session_id'],
                             'token_usage': response_body.get('token_usage', {})
                         }

@@ -7,6 +7,7 @@ from helpers.crud import (
 )
 from helpers.logic import get_current_prompt
 from helpers.bedrock import retrieve_documents, format_context_for_prompt
+from helpers.intervention import assess_response
 import helpers.config as config
 from helpers.token_limits import check_limit, record_usage
 
@@ -93,17 +94,24 @@ def _prepare_conversation(
     try:
         if save_user_message:
             ensure_session_exists(db_connection, chat_session_id, user_id)
-            insert_message(db_connection, chat_session_id, "user", query, None)
+            insert_message(
+                db_connection,
+                chat_session_id,
+                "user",
+                query,
+                sources=None,
+                warning=None
+            )
             update_last_active_session(db_connection, chat_session_id)
             db_connection.commit()
     except Exception as e:
         db_connection.rollback()
         logger.error(f"DB Error: {e}")
-        raise e
+        raise
 
     # 4. Determine Phase & Prompt
     current_system_prompt, num_retrieval_results = get_current_prompt(
-        chat_session_id, 
+        chat_session_id,
         db_connection
     )
 
@@ -117,10 +125,10 @@ def _prepare_conversation(
 
     # 6. RAG Retrieval (using rewritten query)
     sources = retrieve_documents(
-        search_query, 
-        knowledge_base_id, 
-        bedrock_region, 
-        num_retrieval_results, 
+        search_query,
+        knowledge_base_id,
+        bedrock_region,
+        num_retrieval_results,
         search_type=search_type
     )
     
@@ -158,7 +166,14 @@ def _prepare_conversation(
 
     return bedrock_messages, full_system_prompt, sources
 
-def _save_ai_response(db_connection, chat_session_id: str, answer_text: str, sources: List[Dict[str, Any]]):
+
+def _save_ai_response(
+    db_connection,
+    chat_session_id: str,
+    answer_text: str,
+    sources: List[Dict[str, Any]],
+    warning_text: Optional[str] = None,
+):
     try:
         sources_for_db = []
         for s in sources:
@@ -167,7 +182,14 @@ def _save_ai_response(db_connection, chat_session_id: str, answer_text: str, sou
                 s_copy['content'] = s_copy['content']
             sources_for_db.append(s_copy)
 
-        insert_message(db_connection, chat_session_id, "AI", answer_text, sources_for_db)
+        insert_message(
+            db_connection,
+            chat_session_id,
+            "AI",
+            answer_text,
+            sources_for_db,
+            warning_text
+        )
         update_last_active_session(db_connection, chat_session_id)
         db_connection.commit()
     except Exception as e:
@@ -198,22 +220,42 @@ def get_response(
                     "sessionId": chat_session_id,
                     "is_first_message": False,
                     "token_limit_exceeded": True,
-                    "token_usage": usage_info
+                    "token_usage": usage_info,
+                    "warning": None,
+                    "intervention": None
                 }
 
         bedrock_messages, full_system_prompt, sources = _prepare_conversation(
-            query, knowledge_base_id, bedrock_region, chat_session_id, user_id, db_connection,
+            query,
+            knowledge_base_id,
+            bedrock_region,
+            chat_session_id,
+            user_id,
+            db_connection,
             save_user_message=save_user_message
         )
     except ValueError as e:
-        return {"response": str(e), "sources_used": []}
+        return {
+            "response": str(e),
+            "sources_used": [],
+            "warning": None,
+            "intervention": None
+        }
     except Exception as e:
-         logger.error(f"Prepare conversation failed: {e}")
-         return {"response": "An error occurred.", "sources_used": []}
+        logger.error(f"Prepare conversation failed: {e}")
+        return {
+            "response": "An error occurred.",
+            "sources_used": [],
+            "warning": None,
+            "intervention": None,
+        }
 
     bedrock_runtime = boto3.client("bedrock-runtime", region_name=bedrock_region)
     
     answer_text = ""
+    warning_text = None
+    intervention_result = None
+
     try:
         response = bedrock_runtime.converse(
             modelId=model_arn,
@@ -226,7 +268,28 @@ def get_response(
         logger.error(f"Generation Failed: {e}")
         answer_text = "I encountered an error generating the response."
 
-    _save_ai_response(db_connection, chat_session_id, answer_text, sources)
+    if answer_text and not answer_text.startswith("I encountered an error"):
+        try:
+            intervention_result = assess_response(
+                query=query,
+                answer_text=answer_text,
+                sources=sources,
+                bedrock_region=bedrock_region,
+                verifier_model_id=model_arn,
+            )
+            warning_text = intervention_result.get("warning_text")
+        except Exception as e:
+            logger.error(f"Intervention Failed: {e}")
+            warning_text = None
+            intervention_result = None
+
+    _save_ai_response(
+        db_connection,
+        chat_session_id,
+        answer_text,
+        sources,
+        warning_text
+    )
 
     if user_id and answer_text and not answer_text.startswith("I encountered an error"):
         usage_info = record_usage(user_id, answer_text, db_connection)
@@ -236,5 +299,7 @@ def get_response(
         "sources_used": sources,
         "sessionId": chat_session_id,
         "is_first_message": False,
-        "token_usage": usage_info
+        "token_usage": usage_info,
+        "warning": warning_text,
+        "intervention": intervention_result
     }
