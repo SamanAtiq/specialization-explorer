@@ -208,11 +208,16 @@ export default function AIChatPage() {
         case "complete":
           setIsStreaming(false);
           setStreamingMessageId(null);
-          if (message.sources && streamingMessageId) {
+          if (streamingMessageId) {
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === streamingMessageId
-                  ? { ...msg, sources_used: message.sources, isTyping: false }
+                  ? {
+                      ...msg,
+                      sources_used: message.sources || [],
+                      warning: message.warning || null,
+                      isTyping: false,
+                    }
                   : msg
               )
             );
@@ -325,6 +330,7 @@ export default function AIChatPage() {
           sender: "user" | "AI";
           content: string;
           sources?: any; // jsonb
+          warning?: string | null;
           created_at: string; // ISO
         }
 
@@ -356,6 +362,7 @@ export default function AIChatPage() {
             sender: m.sender === "AI" ? ("bot" as const) : ("user" as const),
             text: m.content,
             sources_used: parsedSources,
+            warning: (m as any).warning ?? null,
             time: new Date(m.created_at).getTime(),
           };
         });
@@ -463,11 +470,12 @@ export default function AIChatPage() {
           prev.map((msg) =>
             msg.id === botMsg.id
               ? {
-                ...msg,
-                text: data.response || "Sorry, I couldn't generate a response.",
-                sources_used: data.sources || [],
-                isTyping: false,
-              }
+                  ...msg,
+                  text: data.response || "Sorry, I couldn't generate a response.",
+                  sources_used: data.sources || [],
+                  warning: data.warning || null,
+                  isTyping: false,
+                }
               : msg
           )
         );
@@ -628,11 +636,12 @@ export default function AIChatPage() {
         prev.map((msg) =>
           msg.id === botMsg.id
             ? {
-              ...msg,
-              text: data.response || "Sorry, I couldn't generate a response.",
-              sources_used: data.sources || [],
-              isTyping: false,
-            }
+                ...msg,
+                text: data.response || "Sorry, I couldn't generate a response.",
+                sources_used: data.sources || [],
+                warning: data.warning || null,
+                isTyping: false,
+              }
             : msg
         )
       );
@@ -680,6 +689,7 @@ export default function AIChatPage() {
           key={message.id}
           text={message.text}
           sources={message.sources_used}
+          warning={message.warning}
           isTyping={message.isTyping}
           messageTime={message.time}
           initialLoadTime={initialMessageLoadTime}

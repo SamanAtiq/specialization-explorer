@@ -12,4 +12,5 @@ export interface Message {
     totalQuestions: number;
   };
   isFromSharedChat?: boolean;
+  warning?: string | null;
 }

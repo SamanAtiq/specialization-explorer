@@ -12,6 +12,7 @@ import TypingIndicator from "./TypingIndicator";
 type AIChatMessageProps = {
   text: string;
   sources?: any[];
+  warning?: string | null;
   isTyping?: boolean;
   messageTime?: number;
   initialLoadTime?: number | null;
@@ -21,6 +22,7 @@ type AIChatMessageProps = {
 export default function AIChatMessage({
   text,
   sources = [],
+  warning = null,
   isTyping = false,
   messageTime,
   initialLoadTime,
@@ -313,6 +315,14 @@ export default function AIChatMessage({
               </div>
             );
           })()}
+
+          {!isTyping && warning && (
+            <div className="mt-4">
+              <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
+                {warning}
+              </div>
+            </div>
+          )}
 
           {/* Per-message speech action */}
           <div className="flex justify-end mt-2">
