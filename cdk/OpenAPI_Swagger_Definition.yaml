@@ -583,7 +583,7 @@ paths:
                 type: object
                 properties:
                   id: { type: string }
-                  max_messages_per_session: { type: integer }
+                  daily_token_limit: { type: integer }
                   min_messages_before_suggest: { type: integer }
                   max_chatacters_per_user_message: { type: integer }
                   max_chatacters_per_ai_message: { type: integer }
@@ -613,7 +613,7 @@ paths:
             schema:
               type: object
               properties:
-                max_messages_per_session: { type: integer }
+                daily_token_limit: { type: integer }
                 min_messages_before_suggest: { type: integer }
                 max_chatacters_per_user_message: { type: integer }
                 max_chatacters_per_ai_message: { type: integer }
@@ -628,7 +628,7 @@ paths:
                 type: object
                 properties:
                   id: { type: string }
-                  max_messages_per_session: { type: integer }
+                  daily_token_limit: { type: integer }
                   min_messages_before_suggest: { type: integer }
                   max_chatacters_per_user_message: { type: integer }
                   max_chatacters_per_ai_message: { type: integer }

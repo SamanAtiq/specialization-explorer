@@ -1164,7 +1164,7 @@ exports.handler = async (event) => {
           )
           SELECT
             latest.id,
-            latest.max_messages_per_session,
+            latest.daily_token_limit,
             latest.min_messages_before_suggest,
             latest.max_characters_per_user_message,
             latest.max_characters_per_ai_message,
@@ -1179,7 +1179,7 @@ exports.handler = async (event) => {
 
         // But keep a safe fallback to avoid crashing UI.
         const fallback = {
-          max_messages_per_session: 20,
+          daily_token_limit: 10000,
           min_messages_before_suggest: 4,
           max_characters_per_user_message: 2000,
           max_characters_per_ai_message: 5000,
@@ -1300,7 +1300,7 @@ exports.handler = async (event) => {
         const isFiniteInt = (v) => Number.isInteger(v) && Number.isFinite(v);
 
         const allowed = [
-          "max_messages_per_session",
+          "daily_token_limit",
           "min_messages_before_suggest",
           "max_characters_per_user_message",
           "max_characters_per_ai_message",
@@ -1329,14 +1329,14 @@ exports.handler = async (event) => {
         }
 
         if (
-          patch.max_messages_per_session !== undefined &&
-          (!isFiniteInt(patch.max_messages_per_session) ||
-            patch.max_messages_per_session < 1 ||
-            patch.max_messages_per_session > 500)
+          patch.daily_token_limit !== undefined &&
+          (!isFiniteInt(patch.daily_token_limit) ||
+            patch.daily_token_limit < 5000 ||
+            patch.daily_token_limit > 100000)
         ) {
           response.statusCode = 400;
           response.body = JSON.stringify({
-            error: "max_messages_per_session must be an integer between 1 and 500",
+            error: "daily_token_limit must be an integer between 5000 and 100000",
           });
           break;
         }
@@ -1436,7 +1436,7 @@ exports.handler = async (event) => {
           )
           UPDATE system_settings s
           SET
-            max_messages_per_session = COALESCE(${patch.max_messages_per_session}, s.max_messages_per_session),
+            daily_token_limit = COALESCE(${patch.daily_token_limit}, s.daily_token_limit),
             min_messages_before_suggest = COALESCE(${patch.min_messages_before_suggest}, s.min_messages_before_suggest),
             max_characters_per_user_message = COALESCE(${patch.max_characters_per_user_message}, s.max_characters_per_user_message),
             max_characters_per_ai_message = COALESCE(${patch.max_characters_per_ai_message}, s.max_characters_per_ai_message),
@@ -1448,7 +1448,7 @@ exports.handler = async (event) => {
           WHERE s.id = (SELECT id FROM latest)
           RETURNING
             s.id,
-            s.max_messages_per_session,
+            s.daily_token_limit,
             s.min_messages_before_suggest,
             s.max_characters_per_user_message,
             s.max_characters_per_ai_message,

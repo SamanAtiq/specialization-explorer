@@ -19,7 +19,7 @@ import type {
 } from "@/components/Admin/SystemMessageEditor";
 
 type SystemSettingsDTO = {
-  max_messages_per_session: number;
+  daily_token_limit: number;
   min_messages_before_suggest: number;
   max_characters_per_user_message: number;
   max_characters_per_ai_message: number;
@@ -34,7 +34,7 @@ type SystemSettingsDTO = {
 type SystemSettingsAPIResponse = Partial<SystemSettingsDTO>;
 
 const DEFAULT_SETTINGS: SystemSettingsDTO = {
-  max_messages_per_session: 20,
+  daily_token_limit: 10000,
   min_messages_before_suggest: 4,
   max_characters_per_user_message: 2000,
   max_characters_per_ai_message: 5000,
@@ -247,8 +247,8 @@ export default function SystemSettings() {
       const data: SystemSettingsAPIResponse = await res.json();
 
       setSettings({
-        max_messages_per_session:
-          data.max_messages_per_session ?? DEFAULT_SETTINGS.max_messages_per_session,
+        daily_token_limit:
+          data.daily_token_limit ?? DEFAULT_SETTINGS.daily_token_limit,
         min_messages_before_suggest:
           data.min_messages_before_suggest ?? DEFAULT_SETTINGS.min_messages_before_suggest,
         max_characters_per_user_message:
@@ -305,7 +305,7 @@ export default function SystemSettings() {
       if (!adminEmail) throw new Error("Missing admin email (not authenticated?)");
 
       const payload = {
-        max_messages_per_session: settings.max_messages_per_session,
+        daily_token_limit: settings.daily_token_limit,
         min_messages_before_suggest: settings.min_messages_before_suggest,
         max_characters_per_user_message: settings.max_characters_per_user_message,
         max_characters_per_ai_message: settings.max_characters_per_ai_message,
@@ -512,11 +512,11 @@ export default function SystemSettings() {
                     id="max-messages-per-session"
                     type="number"
                     min={1}
-                    value={settings.max_messages_per_session}
+                    value={settings.daily_token_limit}
                     onChange={(e) =>
                       setSettings((s) => ({
                         ...s,
-                        max_messages_per_session: Number(e.target.value),
+                        daily_token_limit: Number(e.target.value),
                       }))
                     }
                   />
