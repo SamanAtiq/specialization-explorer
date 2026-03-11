@@ -74,8 +74,8 @@ const parseBody = (body) => {
 
 const handleError = (error, response) => {
   response.statusCode = 500;
-  console.log(error);
-  response.body = JSON.stringify(error.message);
+  console.error("Internal server error:", error);
+  response.body = JSON.stringify({ error: "Internal server error" });
 };
 
 /**
@@ -856,7 +856,7 @@ exports.handler = async (event) => {
           break;
         }
 
-        // Build dynamic update query for templates
+        // Build dynamic update object for templates
         const allowedTemplateFields = [
           "name",
           "description",
@@ -865,59 +865,61 @@ exports.handler = async (event) => {
           "metadata",
           "current_version_id",
         ];
-        const templateUpdates = [];
-        const templateValues = [];
+        const updates = {};
+        let validationError = null;
 
-        Object.keys(updateTemplateData).forEach((key) => {
+        for (const key of Object.keys(updateTemplateData)) {
           if (
-            allowedTemplateFields.includes(key) &&
-            updateTemplateData[key] !== undefined
+            !allowedTemplateFields.includes(key) ||
+            updateTemplateData[key] === undefined
           ) {
-            // Validate type if being updated
-            if (key === "type") {
-              const validTypes = [
-                "RAG",
-                "quiz_generation",
-                "mcq_generation",
-                "audio_generation",
-              ];
-              if (!validTypes.includes(updateTemplateData[key])) {
-                response.statusCode = 400;
-                response.body = JSON.stringify({
-                  error: `Invalid type. Must be one of: ${validTypes.join(
-                    ", "
-                  )}`,
-                });
-                return;
-              }
-            }
-            // Validate visibility if being updated
-            if (key === "visibility") {
-              const validVisibilities = ["private", "org", "public"];
-              if (!validVisibilities.includes(updateTemplateData[key])) {
-                response.statusCode = 400;
-                response.body = JSON.stringify({
-                  error: `Invalid visibility. Must be one of: ${validVisibilities.join(
-                    ", "
-                  )}`,
-                });
-                return;
-              }
-            }
-            templateUpdates.push(key);
-            // Stringify metadata if it's an object
-            if (
-              key === "metadata" &&
-              typeof updateTemplateData[key] === "object"
-            ) {
-              templateValues.push(JSON.stringify(updateTemplateData[key]));
-            } else {
-              templateValues.push(updateTemplateData[key]);
+            continue;
+          }
+
+          // Validate type if being updated
+          if (key === "type") {
+            const validTypes = [
+              "RAG",
+              "quiz_generation",
+              "mcq_generation",
+              "audio_generation",
+            ];
+            if (!validTypes.includes(updateTemplateData[key])) {
+              validationError = `Invalid type. Must be one of: ${validTypes.join(
+                ", "
+              )}`;
+              break;
             }
           }
-        });
+          // Validate visibility if being updated
+          if (key === "visibility") {
+            const validVisibilities = ["private", "org", "public"];
+            if (!validVisibilities.includes(updateTemplateData[key])) {
+              validationError = `Invalid visibility. Must be one of: ${validVisibilities.join(
+                ", "
+              )}`;
+              break;
+            }
+          }
 
-        if (templateUpdates.length === 0) {
+          // Stringify metadata if it's an object
+          if (
+            key === "metadata" &&
+            typeof updateTemplateData[key] === "object"
+          ) {
+            updates[key] = JSON.stringify(updateTemplateData[key]);
+          } else {
+            updates[key] = updateTemplateData[key];
+          }
+        }
+
+        if (validationError) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: validationError });
+          break;
+        }
+
+        if (Object.keys(updates).length === 0) {
           response.statusCode = 400;
           response.body = JSON.stringify({
             error: "No valid fields to update",
@@ -925,19 +927,12 @@ exports.handler = async (event) => {
           break;
         }
 
-        // Construct the SET clause dynamically
-        const templateSetClause = templateUpdates
-          .map((field, idx) => `${field} = $${idx + 1}`)
-          .join(", ");
-        templateValues.push(updateTemplateId);
-
-        const updateTemplateResult = await sqlConnection.unsafe(
-          `UPDATE prompt_templates 
-           SET ${templateSetClause}, updated_at = NOW() 
-           WHERE id = $${templateValues.length} 
-           RETURNING id, name, description, type, visibility, metadata, current_version_id, created_at, updated_at`,
-          templateValues
-        );
+        const updateTemplateResult = await sqlConnection`
+          UPDATE prompt_templates 
+          SET ${sqlConnection(updates, Object.keys(updates))}, updated_at = NOW()
+          WHERE id = ${updateTemplateId}
+          RETURNING id, name, description, type, visibility, metadata, current_version_id, created_at, updated_at
+        `;
 
         if (updateTemplateResult.length === 0) {
           response.statusCode = 404;

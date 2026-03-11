@@ -18,12 +18,12 @@ exports.handler = async () => {
     }
 
     const token = jwt.sign(
-      { 
+      {
         role: "user",
         jti: randomUUID(),  // Unique token ID for tracking/revocation
         iat: Math.floor(Date.now() / 1000)  // Explicit issued-at timestamp
-      }, 
-      cachedSecret, 
+      },
+      cachedSecret,
       { expiresIn: "15m" }  // Reduced to 15 minutes for better security
     );
     return {
