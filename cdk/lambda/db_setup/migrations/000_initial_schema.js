@@ -92,6 +92,7 @@ exports.up = (pgm) => {
       sender sender_role NOT NULL,
       content text NOT NULL,
       sources jsonb,
+      warning text,
       created_at timestamptz DEFAULT now()
     );
 
