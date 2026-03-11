@@ -129,7 +129,7 @@ exports.up = (pgm) => {
     -- System Settings
     CREATE TABLE IF NOT EXISTS system_settings (
       id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-      max_messages_per_session int DEFAULT 20,
+      daily_token_limit int DEFAULT 10000,
       min_messages_before_suggest int DEFAULT 4,
       max_characters_per_user_message int DEFAULT 2000,
       max_characters_per_ai_message int DEFAULT 5000,
@@ -319,7 +319,7 @@ exports.up = (pgm) => {
     -- SEED: system_settings (single default row)
     -- ==============================
     INSERT INTO system_settings (
-      max_messages_per_session,
+      daily_token_limit,
       min_messages_before_suggest,
       max_characters_per_user_message,
       max_characters_per_ai_message,
@@ -330,7 +330,7 @@ exports.up = (pgm) => {
       updated_at
     )
     SELECT
-      20,
+      10000,
       4,
       2000,
       5000,
