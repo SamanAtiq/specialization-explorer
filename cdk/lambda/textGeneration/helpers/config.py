@@ -16,11 +16,10 @@ MODEL_ARN = "anthropic.claude-3-sonnet-20240229-v1:0"
 BEDROCK_REGION = "ca-central-1"
 
 # Chat Configuration
-MAX_MESSAGES_PER_SESSION = 20
+DAILY_TOKEN_LIMIT = 10000
 MIN_EXCHANGES_BEFORE_SUGGEST = 4
 MAX_CHARACTERS_PER_USER_MESSAGE = 2000
 MAX_CHARACTERS_PER_AI_MESSAGE = 5000
-DAILY_TOKEN_LIMIT = 10000
 
 # Bedrock Configuration
 SEARCH_TYPE = "HYBRID"
@@ -71,12 +70,11 @@ def load_config(db_connection):
     Uses caching to avoid DB hits on every request if container is warm.
     """
     global _CONFIG_LOADED
-    global MAX_MESSAGES_PER_SESSION, MIN_EXCHANGES_BEFORE_SUGGEST, MAX_CHARACTERS_PER_USER_MESSAGE, MAX_CHARACTERS_PER_AI_MESSAGE, TEMPERATURE, TOP_P
+    global DAILY_TOKEN_LIMIT, MIN_EXCHANGES_BEFORE_SUGGEST, MAX_CHARACTERS_PER_USER_MESSAGE, MAX_CHARACTERS_PER_AI_MESSAGE, TEMPERATURE, TOP_P
     global GUARDRAILS, ROLE, CHECKLIST, INSTRUCTIONS, DETECTIVE_PHASE_PROMPT, SUGGESTION_PHASE_PROMPT, INITIAL_PROMPT
     global KB_ID
     global SPEC_LIST
     global SPEC_PROMPT
-    global DAILY_TOKEN_LIMIT
 
     if _CONFIG_LOADED:
         return
@@ -99,14 +97,13 @@ def load_config(db_connection):
     # 1. Update System Settings
     settings = data.get('settings', {})
     if settings:
-        MAX_MESSAGES_PER_SESSION = settings.get('max_messages_per_session', MAX_MESSAGES_PER_SESSION)
+        DAILY_TOKEN_LIMIT = settings.get('daily_token_limit', DAILY_TOKEN_LIMIT)
         MIN_EXCHANGES_BEFORE_SUGGEST = settings.get('min_messages_before_suggest', MIN_EXCHANGES_BEFORE_SUGGEST)
         MAX_CHARACTERS_PER_USER_MESSAGE = settings.get('max_characters_per_user_message', MAX_CHARACTERS_PER_USER_MESSAGE)
         MAX_CHARACTERS_PER_AI_MESSAGE = settings.get('max_characters_per_ai_message', MAX_CHARACTERS_PER_AI_MESSAGE)
         TEMPERATURE = settings.get('temperature', TEMPERATURE)
         TOP_P = settings.get('top_p', TOP_P)
         SPEC_LIST = settings.get('specialization_list', SPEC_LIST)
-        # DAILY_TOKEN_LIMIT = settings.get('daily_token_limit', DAILY_TOKEN_LIMIT)
     
     # 2. Update System Messages
     msgs = data.get('messages', {})

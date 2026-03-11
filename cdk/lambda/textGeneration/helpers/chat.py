@@ -71,7 +71,6 @@ def _prepare_conversation(
     chat_session_id: str,
     user_id: Optional[str],
     db_connection,
-    max_history_messages: Optional[int] = None,
     search_type: Optional[str] = None,
     save_user_message: bool = True
 ) -> Tuple[List[Dict[str, Any]], str, List[Dict[str, Any]]]:
@@ -80,8 +79,6 @@ def _prepare_conversation(
     Returns: (bedrock_messages, full_system_prompt, sources)
     """
     # Resolve dynamic defaults
-    if max_history_messages is None:
-        max_history_messages = config.MAX_MESSAGES_PER_SESSION
     if search_type is None:
         search_type = config.SEARCH_TYPE
 
@@ -90,7 +87,7 @@ def _prepare_conversation(
         raise ValueError("Please provide a non-empty question.")
 
     # 2. Retrieve History
-    raw_history = fetch_recent_messages(db_connection, chat_session_id, limit=max_history_messages * 2)
+    raw_history = fetch_recent_messages(db_connection, chat_session_id)
     
     # 3. Save User Message
     try:

@@ -25,8 +25,7 @@ def get_exchange_count(chat_session_id: str, db_connection) -> int:
 def fetch_recent_messages(
     db_connection,
     chat_session_id: str,
-    limit: int = 20
-) -> List[Dict[str, Any]]:
+) -> List[Dict[str, Any]]:    
     """
     Fetch recent messages for a chat session (oldest->newest).
     """
@@ -44,7 +43,7 @@ def fetch_recent_messages(
             ORDER BY created_at ASC
             LIMIT %s
             """,
-            (chat_session_id, limit)
+            (chat_session_id, 20)
         )
         rows = cur.fetchall()
 
@@ -144,7 +143,7 @@ def fetch_system_config(db_connection) -> Dict[str, Any]:
         # Fetch System Settings
         with db_connection.cursor() as cur:
             cur.execute("""
-                SELECT max_messages_per_session,
+                SELECT daily_token_limit,
                        min_messages_before_suggest,
                        max_characters_per_user_message,
                        max_characters_per_ai_message,
@@ -158,7 +157,7 @@ def fetch_system_config(db_connection) -> Dict[str, Any]:
             row = cur.fetchone()
             if row:
                 config['settings'] = {
-                    'max_messages_per_session': row[0],
+                    'daily_token_limit': row[0],
                     'min_messages_before_suggest': row[1],
                     'max_characters_per_user_message': row[2],
                     'max_characters_per_ai_message': row[3],
