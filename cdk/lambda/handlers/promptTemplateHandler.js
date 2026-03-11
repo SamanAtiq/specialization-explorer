@@ -56,8 +56,8 @@ const parseBody = (body) => {
 
 const handleError = (error, response) => {
   response.statusCode = 500;
-  console.log(error);
-  response.body = JSON.stringify(error.message);
+  console.error("Internal server error:", error);
+  response.body = JSON.stringify({ error: "Internal server error" });
 };
 
 exports.handler = async (event) => {
@@ -126,9 +126,8 @@ exports.handler = async (event) => {
 
         const newTemplate = await sqlConnection`
           INSERT INTO prompt_templates (name, description, type, current_version_id, created_by, visibility, metadata)
-          VALUES (${name}, ${description || null}, ${type}, ${
-          current_version_id || null
-        }, ${created_by || null}, ${visibility || "private"}, ${metadata || {}})
+          VALUES (${name}, ${description || null}, ${type}, ${current_version_id || null
+          }, ${created_by || null}, ${visibility || "private"}, ${metadata || {}})
           RETURNING id, name, description, type, current_version_id, created_by, visibility, metadata, created_at, updated_at
         `;
 

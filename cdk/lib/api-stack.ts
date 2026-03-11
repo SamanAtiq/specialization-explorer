@@ -292,6 +292,7 @@ export class ApiGatewayStack extends cdk.Stack {
       cloudWatchRole: true,
       deployOptions: {
         stageName: "prod",
+        tracingEnabled: true,
         description: "Deployment with flashcard support - Nov 18 2025",
         loggingLevel: apigateway.MethodLoggingLevel.INFO,
         dataTraceEnabled: true,
@@ -604,6 +605,20 @@ export class ApiGatewayStack extends cdk.Stack {
       })
     );
 
+    // Grant X-Ray tracing permissions
+    lambdaRole.addToPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "xray:PutTraceSegments",
+          "xray:PutTelemetryRecords",
+          "xray:GetSamplingRules",
+          "xray:GetSamplingTargets",
+        ],
+        resources: ["*"],
+      })
+    );
+
     // Inline policy to allow AdminAddUserToGroup action
     const adminAddUserToGroupPolicyLambda = new iam.Policy(
       this,
@@ -726,8 +741,9 @@ export class ApiGatewayStack extends cdk.Stack {
       generateSecretString: {
         secretStringTemplate: JSON.stringify({}),
         generateStringKey: "jwtSecret",
-        excludePunctuation: true,
-        passwordLength: 64,
+        excludePunctuation: false,
+        excludeCharacters: '"@/\\\'',
+        passwordLength: 128,
       },
     });
 
@@ -934,6 +950,7 @@ export class ApiGatewayStack extends cdk.Stack {
         role: lambdaRole,
         layers: [psycopgLayer],
         vpc: vpcStack.vpc,
+        tracing: lambda.Tracing.ACTIVE,
         environment: {
           SM_DB_CREDENTIALS: db.secretPathUser.secretName,
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
@@ -998,6 +1015,7 @@ export class ApiGatewayStack extends cdk.Stack {
       memorySize: 512,
       vpc: vpcStack.vpc,
       role: lambdaRole,
+      tracing: lambda.Tracing.ACTIVE,
       environment: {
         REGION: this.region,
       },
@@ -1070,6 +1088,7 @@ export class ApiGatewayStack extends cdk.Stack {
       memorySize: 512,
       layers: [postgres],
       role: lambdaRole,
+      tracing: lambda.Tracing.ACTIVE,
     });
 
     lambdaUserFunction.addPermission("AllowApiGatewayInvoke", {
@@ -1103,6 +1122,7 @@ export class ApiGatewayStack extends cdk.Stack {
       memorySize: 512,
       layers: [postgres],
       role: lambdaRole,
+      tracing: lambda.Tracing.ACTIVE,
     });
 
     lambdaSystemMessagesFunction.addPermission("AllowApiGatewayInvoke", {
@@ -1153,6 +1173,7 @@ export class ApiGatewayStack extends cdk.Stack {
       memorySize: 512,
       layers: [postgres],
       role: lambdaRole,
+      tracing: lambda.Tracing.ACTIVE,
     });
 
 
@@ -1186,6 +1207,7 @@ export class ApiGatewayStack extends cdk.Stack {
         memorySize: 512,
         layers: [postgres],
         role: lambdaRole,
+        tracing: lambda.Tracing.ACTIVE,
       }
     );
 
@@ -1220,6 +1242,7 @@ export class ApiGatewayStack extends cdk.Stack {
         memorySize: 512,
         layers: [postgres],
         role: lambdaRole,
+        tracing: lambda.Tracing.ACTIVE,
       }
     );
 
@@ -1258,6 +1281,7 @@ export class ApiGatewayStack extends cdk.Stack {
         memorySize: 512,
         layers: [postgres],
         role: lambdaRole,
+        tracing: lambda.Tracing.ACTIVE,
       }
     );
 
@@ -1423,6 +1447,7 @@ export class ApiGatewayStack extends cdk.Stack {
         memorySize: 512,
         layers: [postgres],
         role: lambdaRole,
+        tracing: lambda.Tracing.ACTIVE,
       }
     );
 
@@ -1435,7 +1460,6 @@ export class ApiGatewayStack extends cdk.Stack {
     const cfnLambda_sharedUserPrompt = lambdaSharedUserPromptFunction.node
       .defaultChild as lambda.CfnFunction;
     cfnLambda_sharedUserPrompt.overrideLogicalId("sharedUserPromptFunction");
-
 
   }
 }

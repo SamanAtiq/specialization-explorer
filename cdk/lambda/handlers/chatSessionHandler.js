@@ -52,8 +52,8 @@ const parseBody = (body) => {
 
 const handleError = (error, response) => {
   response.statusCode = 500;
-  console.log(error);
-  response.body = JSON.stringify(error.message);
+  console.error("Internal server error:", error);
+  response.body = JSON.stringify({ error: "Internal server error" });
 };
 
 exports.handler = async (event) => {
@@ -251,11 +251,17 @@ exports.handler = async (event) => {
 
       case "GET /chat_sessions/{chat_session_id}/chat_history": {
         const chatSessionId = event.pathParameters?.chat_session_id;
-        const requestingUserId = event.queryStringParameters?.user_id || null;
+        const requestingUserId = event.queryStringParameters?.user_id;
 
         if (!chatSessionId) {
           response.statusCode = 400;
           response.body = JSON.stringify({ error: "chat_session_id is required" });
+          break;
+        }
+
+        if (!requestingUserId) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "user_id query parameter is required" });
           break;
         }
 
@@ -272,17 +278,15 @@ exports.handler = async (event) => {
           break;
         }
 
-        // Ownership validation
-        if (requestingUserId) {
-          const ownerId = chatSessionResult[0].user_id;
-          if (ownerId !== requestingUserId) {
-            response.statusCode = 403;
-            response.body = JSON.stringify({
-              error: "Access denied",
-              message: "You do not have permission to access this chat session",
-            });
-            break;
-          }
+        // Ownership validation (mandatory)
+        const ownerId = chatSessionResult[0].user_id;
+        if (ownerId !== requestingUserId) {
+          response.statusCode = 403;
+          response.body = JSON.stringify({
+            error: "Access denied",
+            message: "You do not have permission to access this chat session",
+          });
+          break;
         }
 
         // Fetch messages
@@ -325,23 +329,24 @@ exports.handler = async (event) => {
           break;
         }
 
-        // SECURITY: Validate session ownership if user_session_id is provided
-        if (requestingUserSessionId) {
-          const sessionOwner = chatSessionResult[0].user_session_id;
-          if (sessionOwner !== requestingUserSessionId) {
-            logger.warn(`Unauthorized access attempt: user_session ${requestingUserSessionId} tried to access chat_session ${chatSessionId} owned by ${sessionOwner}`);
-            response.statusCode = 403;
-            response.body = JSON.stringify({
-              error: "Access denied",
-              message: "You do not have permission to access this chat session"
-            });
-            break;
-          }
-          logger.info(`Session ownership validated for chat_session ${chatSessionId}`);
-        } else {
-          // Log warning if no user_session_id provided (backward compatibility)
-          logger.warn(`No user_session_id provided for chat_session ${chatSessionId} - ownership not validated`);
+        // SECURITY: Validate session ownership (mandatory)
+        if (!requestingUserSessionId) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "user_session_id query parameter is required" });
+          break;
         }
+
+        const sessionOwner = chatSessionResult[0].user_session_id;
+        if (sessionOwner !== requestingUserSessionId) {
+          console.warn(`Unauthorized access attempt: user_session ${requestingUserSessionId} tried to access chat_session ${chatSessionId} owned by ${sessionOwner}`);
+          response.statusCode = 403;
+          response.body = JSON.stringify({
+            error: "Access denied",
+            message: "You do not have permission to access this chat session"
+          });
+          break;
+        }
+        console.log(`Session ownership validated for chat_session ${chatSessionId}`);
 
         // Fetch all interactions for this chat session
         const interactions = await sqlConnection`
@@ -382,12 +387,19 @@ exports.handler = async (event) => {
 
         // Verify source chat session exists
         const sourceChatSession = await sqlConnection`
-          SELECT id, textbook_id FROM chat_sessions WHERE id = ${source_chat_session_id}
+          SELECT id, textbook_id, user_session_id FROM chat_sessions WHERE id = ${source_chat_session_id}
         `;
 
         if (sourceChatSession.length === 0) {
           response.statusCode = 400;
           response.body = JSON.stringify({ error: "Source chat session not found" });
+          break;
+        }
+
+        // SECURITY: Verify the requesting user owns the source session
+        if (sourceChatSession[0].user_session_id !== user_session_id) {
+          response.statusCode = 403;
+          response.body = JSON.stringify({ error: "You can only fork your own chat sessions" });
           break;
         }
 
@@ -515,55 +527,6 @@ exports.handler = async (event) => {
         response.body = "";
         break;
       }
-      // DEPRECATED by new /chat_sessions/{chat_session_id} --> will delete later
-      // case "DELETE /chat_sessions/{chat_session_id}":
-      //   const deleteChatSessionId = event.pathParameters?.chat_session_id;
-      //   const deleteUserSessionId = event.queryStringParameters?.user_session_id;
-
-      //   if (!deleteChatSessionId) {
-      //     response.statusCode = 400;
-      //     response.body = JSON.stringify({ error: "chat_session_id is required" });
-      //     break;
-      //   }
-
-      //   if (!deleteUserSessionId) {
-      //     response.statusCode = 400;
-      //     response.body = JSON.stringify({ error: "user_session_id is required" });
-      //     break;
-      //   }
-
-      //   // Verify the chat session exists and belongs to the user
-      //   const chatSessionToDelete = await sqlConnection`
-      //     SELECT id, user_session_id FROM chat_sessions WHERE id = ${deleteChatSessionId}
-      //   `;
-
-      //   if (chatSessionToDelete.length === 0) {
-      //     response.statusCode = 404;
-      //     response.body = JSON.stringify({ error: "Chat session not found" });
-      //     break;
-      //   }
-
-      //   // Verify ownership
-      //   if (chatSessionToDelete[0].user_session_id !== deleteUserSessionId) {
-      //     response.statusCode = 403;
-      //     response.body = JSON.stringify({ error: "You can only delete your own chat sessions" });
-      //     break;
-      //   }
-
-      //   // Delete interactions first (although FK cascade should handle it)
-      //   await sqlConnection`
-      //     DELETE FROM user_interactions WHERE chat_session_id = ${deleteChatSessionId}
-      //   `;
-
-      //   // Delete the chat session
-      //   await sqlConnection`
-      //     DELETE FROM chat_sessions WHERE id = ${deleteChatSessionId}
-      //   `;
-
-      //   console.log(`Chat session ${deleteChatSessionId} deleted by user session ${deleteUserSessionId}`);
-      //   response.statusCode = 204;
-      //   response.body = "";
-      //   break;
 
       default:
         throw new Error(`Unsupported route: "${pathData}"`);

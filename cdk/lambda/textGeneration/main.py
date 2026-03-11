@@ -166,7 +166,7 @@ def handler(event, context=None):
                 'Access-Control-Allow-Headers': '*',
                 'Access-Control-Allow-Methods': '*'
             },
-            'body': json.dumps({'error': str(e)})
+            'body': json.dumps({'error': 'Internal server error'})
         }
     finally:
         if conn:
