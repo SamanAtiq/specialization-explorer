@@ -263,43 +263,56 @@ export default function AIChatMessage({
             </ReactMarkdown>
           )}
 
-          {!isTyping && sources && sources.length > 0 && (
-            <div className="mt-4 border-t border-muted pt-2">
-              <Button
-                variant="link"
-                size="sm"
-                className="flex items-center gap-1 text-xs cursor-pointer text-muted-foreground hover:text-foreground"
-                onClick={() => setShowSources(!showSources)}
-              >
-                <BookOpen className="h-3 w-3" />
-                {showSources ? "Hide sources" : "Show sources"} (
-                {sources.length})
-                {showSources ? (
-                  <ChevronUp className="h-3 w-3" />
-                ) : (
-                  <ChevronDown className="h-3 w-3" />
-                )}
-              </Button>
+          {!isTyping && sources && sources.length > 0 && (() => {
+            // Filter out sources that look like S3 URLs (both https://s3... and s3://...)
+            const renderableSources = sources.filter(source => {
+              if (typeof source === "string") {
+                return !source.includes("https://s3") && !source.includes("s3://");
+              }
+              const url = source?.url || source?.uri || "";
+              return !url.includes("https://s3") && !url.includes("s3://");
+            });
 
-              {showSources && (
-                <div className="mt-3 w-full">
-                  <p className="text-sm font-medium mb-2 text-foreground/80">
-                    References:
-                  </p>
-                  <ul className="space-y-4 list-none pl-0 w-full">
-                    {sources.map((source, index) => (
-                      <li
-                        key={index}
-                        className="w-full bg-muted/30 p-2 rounded-md border border-muted"
-                      >
-                        {formatSource(source)}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
+            if (renderableSources.length === 0) return null;
+
+            return (
+              <div className="mt-4 border-t border-muted pt-2">
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="flex items-center gap-1 text-xs cursor-pointer text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowSources(!showSources)}
+                >
+                  <BookOpen className="h-3 w-3" />
+                  {showSources ? "Hide sources" : "Show sources"} (
+                  {renderableSources.length})
+                  {showSources ? (
+                    <ChevronUp className="h-3 w-3" />
+                  ) : (
+                    <ChevronDown className="h-3 w-3" />
+                  )}
+                </Button>
+
+                {showSources && (
+                  <div className="mt-3 w-full">
+                    <p className="text-sm font-medium mb-2 text-foreground/80">
+                      References:
+                    </p>
+                    <ul className="space-y-4 list-none pl-0 w-full">
+                      {renderableSources.map((source, index) => (
+                        <li
+                          key={index}
+                          className="w-full bg-muted/30 p-2 rounded-md border border-muted"
+                        >
+                          {formatSource(source)}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Per-message speech action */}
           <div className="flex justify-end mt-2">

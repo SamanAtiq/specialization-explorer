@@ -219,6 +219,24 @@ export default function ChatHistory() {
         });
     };
 
+    const formatSource = (source: any) => {
+        const uri = source?.uri || source?.url || source;
+        const type = source?.type || (uri.includes('s3') ? 'S3' : 'WEB');
+        const content = source?.content || "No content extracted";
+
+        return (
+            <div className="flex flex-col gap-1 w-full text-left">
+                <div className="flex items-center gap-1.5 break-all text-[11px] font-medium text-[#2c5f7c]">
+                    <span className="bg-gray-200 text-gray-700 px-1 py-0.5 rounded text-[9px] font-bold">{type}</span>
+                    <a href={uri} target="_blank" rel="noopener noreferrer" className="hover:underline" title={uri}>{uri}</a>
+                </div>
+                <div className="text-[11px] text-gray-500 italic pl-2 border-l-2 border-gray-200">
+                    "{content}"
+                </div>
+            </div>
+        );
+    };
+
     const handleRefresh = () => {
         clearAdminCache();
         setExpandedUserIds(new Set());
@@ -383,9 +401,21 @@ export default function ChatHistory() {
                                             </div>
 
                                             {/* Display Sources (if AI and sources exist) */}
-                                            {msg.sender === "AI" && msg.sources && (
-                                                <div className="mt-2 pl-2 border-l-2 border-primary/20 text-xs text-gray-500">
-                                                    Sources attached
+                                            {msg.sender === "AI" && msg.sources && msg.sources.length > 0 && (
+                                                <div className="mt-2 w-full">
+                                                    <details className="w-full group">
+                                                        <summary className="cursor-pointer text-xs text-blue-600 hover:text-blue-800 font-medium select-none flex items-center gap-1">
+                                                            <ChevronRight size={14} className="group-open:rotate-90 transition-transform" />
+                                                            View Sources ({msg.sources.length})
+                                                        </summary>
+                                                        <div className="mt-2 space-y-2 pl-4 border-l-2 border-blue-100">
+                                                            {msg.sources.map((source, sIdx) => (
+                                                                <div key={sIdx} className="bg-gray-50 p-2 rounded border border-gray-100">
+                                                                    {formatSource(source)}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </details>
                                                 </div>
                                             )}
                                         </div>
