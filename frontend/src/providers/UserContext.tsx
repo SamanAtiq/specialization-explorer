@@ -5,6 +5,8 @@ import { UserContext } from "./user";
 
 export function UserProvider({ children }: { children: ReactNode }) {
   const [userId, setUserId] = useState<string | null>(null);
+  const [email, setEmail] = useState<string | null>(null);
+  const [metadata, setMetadata] = useState<Record<string, any> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const LOCAL_KEY = "specEx_user_session";
@@ -36,7 +38,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
           }
         );
 
-        return validateResp.ok;
+        if (validateResp.ok) {
+          const data = await validateResp.json();
+          setEmail(data.email || null);
+          setMetadata(data.metadata || null);
+          return true;
+        }
+        return false;
       } catch (e) {
         console.error("Error validating user:", e);
         return false;
@@ -133,8 +141,56 @@ export function UserProvider({ children }: { children: ReactNode }) {
     bootstrap();
   }, []); // Only run once when the app starts
 
+  const updateUserProfile = async (newEmail?: string, newMetadata?: Record<string, any>) => {
+    if (!userId) return;
+
+    try {
+      const tokenResponse = await fetch(
+        `${import.meta.env.VITE_API_ENDPOINT}/user/publicToken`
+      );
+      if (!tokenResponse.ok) throw new Error("Failed to get public token");
+      const { token } = await tokenResponse.json();
+
+      const response = await fetch(`${import.meta.env.VITE_API_ENDPOINT}/user/${userId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          email: newEmail,
+          metadata: newMetadata,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update user profile");
+      }
+
+      const data = await response.json();
+      setEmail(data.email || null);
+      setMetadata(data.metadata || null);
+
+      if (data.id && data.id !== userId) {
+        setUserId(data.id);
+        const payload = {
+          userId: data.id,
+          createdAt: data.created_at || new Date().toISOString(),
+        };
+        try {
+          localStorage.setItem(LOCAL_KEY, JSON.stringify(payload));
+        } catch {
+          console.warn("Failed to update user in localStorage");
+        }
+      }
+    } catch (err) {
+      console.error("Error updating user profile:", err);
+      throw err;
+    }
+  };
+
   return (
-    <UserContext.Provider value={{ userId, isLoading, error }}>
+    <UserContext.Provider value={{ userId, email, metadata, isLoading, error, updateUserProfile }}>
       {children}
     </UserContext.Provider>
   );

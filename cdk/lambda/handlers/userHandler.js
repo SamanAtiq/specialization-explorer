@@ -158,6 +158,94 @@ exports.handler = async (event) => {
       }
 
       // DEPRECATED by /user --> will delete later
+      case "PUT /user/{user_id}": {
+        const userId = event.pathParameters?.user_id;
+        if (!userId) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "user_id is required" });
+          break;
+        }
+
+        const body = parseBody(event.body);
+        const email = body.email;
+        const metadata = body.metadata;
+
+        if (email === undefined && metadata === undefined) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "No update fields provided" });
+          break;
+        }
+
+        if (email) {
+          // Check if this email already exists for a DIFFERENT user
+          const existing = await sqlConnection`
+            SELECT id, email, display_name, role, created_at, last_seen_at, tokens_used, token_window_started_at, metadata
+            FROM users 
+            WHERE email = ${email} 
+            LIMIT 1
+          `;
+          
+          if (existing.length > 0 && existing[0].id !== userId) {
+            // Email belongs to an existing account. "Log them in" to that account.
+            const existingUser = existing[0];
+            
+            // Try to delete the current temporary user to avoid orphaned rows
+            try {
+              // Delete child rows safely if needed, or just let DB cascade or fail
+              // In this case we just ignore failure since it's an optimization to avoid clutter
+              await sqlConnection`DELETE FROM users WHERE id = ${userId}`;
+            } catch (err) {
+              console.warn("Could not delete temporary user id", userId, err.message);
+            }
+            
+            // Update the last_seen_at for the returned existing user
+            await sqlConnection`UPDATE users SET last_seen_at = NOW() WHERE id = ${existingUser.id}`;
+            existingUser.last_seen_at = new Date().toISOString();
+            
+            response.body = JSON.stringify(existingUser);
+            break;
+          }
+        }
+
+        // Build the dynamic update query
+        // Because the user only wanted to set email/metadata, let's keep it simple:
+
+        let updateQuery;
+        if (email !== undefined && metadata !== undefined) {
+          updateQuery = sqlConnection`
+            UPDATE users
+            SET email = ${email}, metadata = metadata || ${metadata}::jsonb, last_seen_at = NOW()
+            WHERE id = ${userId}
+            RETURNING id, email, display_name, role, created_at, last_seen_at, tokens_used, token_window_started_at, metadata
+          `;
+        } else if (email !== undefined) {
+          updateQuery = sqlConnection`
+            UPDATE users
+            SET email = ${email}, last_seen_at = NOW()
+            WHERE id = ${userId}
+            RETURNING id, email, display_name, role, created_at, last_seen_at, tokens_used, token_window_started_at, metadata
+          `;
+        } else if (metadata !== undefined) {
+          updateQuery = sqlConnection`
+            UPDATE users
+            SET metadata = metadata || ${metadata}::jsonb, last_seen_at = NOW()
+            WHERE id = ${userId}
+            RETURNING id, email, display_name, role, created_at, last_seen_at, tokens_used, token_window_started_at, metadata
+          `;
+        }
+
+        const user = await updateQuery;
+
+        if (user.length === 0) {
+          response.statusCode = 404;
+          response.body = JSON.stringify({ error: "User not found" });
+          break;
+        }
+
+        response.body = JSON.stringify(user[0]);
+        break;
+      }
+
       case "POST /user_sessions":
         // After schema refactor, user_sessions no longer has a separate session_id column.
         // Create a new session row and use its primary key (id) as the public session UUID.
