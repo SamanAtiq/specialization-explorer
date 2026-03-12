@@ -2151,6 +2151,48 @@ paths:
         passthroughBehavior: "when_no_match"
         httpMethod: POST
         type: aws_proxy
+    put:
+      tags:
+        - User
+      summary: Update user profile or metadata
+      operationId: update_user
+      security:
+        - userAuthorizer: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                metadata:
+                  type: object
+      responses:
+        "200":
+          description: User updated successfully
+        "400":
+          description: Bad request
+        "404":
+          description: User not found
+        "401":
+          description: Unauthorized
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${userFunction.Arn}/invocations
+        passthroughBehavior: "when_no_match"
+        httpMethod: POST
+        type: aws_proxy
 
   # DEPRECATED by /user --> will delete later
   /user_sessions:
