@@ -32,6 +32,22 @@ type UserProfile = {
   metadata?: Record<string, unknown> | null;
 };
 
+type UpdateUserEmailResult =
+  | { ok: true; data: unknown }
+  | {
+      ok: false;
+      errorType:
+        | "invalid_email"
+        | "email_in_use"
+        | "user_not_found"
+        | "bad_request"
+        | "unauthorized"
+        | "server_error"
+        | "network_error"
+        | "unknown_error";
+      message: string;
+    };
+
 export default function HomePage() {
   const { userId, isLoading: isLoadingUser } = useUser();
   const navigate = useNavigate();
@@ -122,26 +138,108 @@ export default function HomePage() {
     }
   };
 
-  const updateUserEmail = async (id: string, email: string) => {
-    const { token } = await getPublicToken();
+  const updateUserEmail = async (
+    id: string,
+    email: string
+  ): Promise<UpdateUserEmailResult> => {
+    try {
+      const { token } = await getPublicToken();
 
-    const response = await fetch(
-      `${import.meta.env.VITE_API_ENDPOINT}/user/${id}`,
-      {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email }),
+      const response = await fetch(
+        `${import.meta.env.VITE_API_ENDPOINT}/user/${id}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email }),
+        }
+      );
+
+      let responseBody: any = null;
+
+      try {
+        responseBody = await response.json();
+      } catch {
+        responseBody = null;
       }
-    );
 
-    if (!response.ok) {
-      throw new Error("Failed to update email");
+      if (response.ok) {
+        return {
+          ok: true,
+          data: responseBody,
+        };
+      }
+
+      const backendMessage =
+        responseBody?.error || responseBody?.message || "Something went wrong.";
+
+      switch (response.status) {
+        case 400: {
+          const normalizedMessage = String(backendMessage).toLowerCase();
+
+          if (
+            normalizedMessage.includes("invalid email") ||
+            normalizedMessage.includes("email format")
+          ) {
+            return {
+              ok: false,
+              errorType: "invalid_email",
+              message: "Please enter a valid email address.",
+            };
+          }
+
+          return {
+            ok: false,
+            errorType: "bad_request",
+            message: backendMessage,
+          };
+        }
+
+        case 401:
+          return {
+            ok: false,
+            errorType: "unauthorized",
+            message: "You are not authorized. Please refresh and try again.",
+          };
+
+        case 404:
+          return {
+            ok: false,
+            errorType: "user_not_found",
+            message: "We could not find your user account. Please refresh and try again.",
+          };
+
+        case 409:
+          return {
+            ok: false,
+            errorType: "email_in_use",
+            message: "That email is already in use.",
+          };
+
+        case 500:
+          return {
+            ok: false,
+            errorType: "server_error",
+            message: "A server error occurred. Please try again.",
+          };
+
+        default:
+          return {
+            ok: false,
+            errorType: "unknown_error",
+            message: backendMessage,
+          };
+      }
+    } catch (err) {
+      console.error("Error updating user email:", err);
+      return {
+        ok: false,
+        errorType: "network_error",
+        message: "Unable to reach the server. Check your connection and try again.",
+      };
     }
-
-    return response.json();
   };
 
   const checkWhetherToPromptForEmail = async (id: string) => {
@@ -316,19 +414,49 @@ export default function HomePage() {
     setIsSavingEmail(true);
     setEmailError(null);
 
-    try {
-      await updateUserEmail(userId, normalizedEmail);
+    const result = await updateUserEmail(userId, normalizedEmail);
+
+    if (result.ok) {
       localStorage.removeItem(getAnonymousChoiceKey(userId));
       setShowEmailModal(false);
       setEmailInput("");
-    } catch (err) {
-      console.error("Error updating user email:", err);
-      setEmailError(
-        "We couldn't save your email yet. This endpoint still needs to be implemented."
-      );
-    } finally {
       setIsSavingEmail(false);
+      return;
     }
+
+    switch (result.errorType) {
+      case "invalid_email":
+        setEmailError("Please enter a valid email address.");
+        break;
+
+      case "email_in_use":
+        setEmailError("That email is already associated with another account.");
+        break;
+
+      case "user_not_found":
+        setEmailError("Your session could not be found. Please refresh the page.");
+        break;
+
+      case "unauthorized":
+        setEmailError("Your session expired. Please refresh and try again.");
+        break;
+
+      case "network_error":
+        setEmailError("Could not connect to the server. Please check your connection.");
+        break;
+
+      case "server_error":
+        setEmailError("Something went wrong on our side. Please try again.");
+        break;
+
+      case "bad_request":
+      case "unknown_error":
+      default:
+        setEmailError(result.message || "We couldn't save your email.");
+        break;
+    }
+
+    setIsSavingEmail(false);
   };
 
   // Show loading screen while fetching initial data
