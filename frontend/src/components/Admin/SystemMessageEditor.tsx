@@ -35,7 +35,9 @@ export type SystemMessageType =
   | "initial_prompt"
   | "detective_phase_prompt"
   | "suggestion_phase_prompt"
-  | "welcome_message";
+  | "welcome_message"
+  | "partial_hallucination_warning"
+  | "full_hallucination_warning";
 
 export type SystemMessageVersion = {
   id: string;
@@ -43,6 +45,7 @@ export type SystemMessageVersion = {
   content: string;
   version: number;
   is_active: boolean;
+  affects_text_generation: boolean;
   created_by_email?: string | null;
   created_at?: string;
 };
@@ -151,6 +154,7 @@ export default function SystemMessageEditor({
         content: trimmed,
         version: nextVersionNumber(sorted),
         is_active: true,
+        affects_text_generation: true,
         created_by_email: adminEmail ?? undefined,
         created_at: new Date().toISOString(),
       };
