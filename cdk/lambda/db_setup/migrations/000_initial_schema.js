@@ -140,6 +140,10 @@ exports.up = (pgm) => {
       max_characters_per_ai_message int DEFAULT 5000,
       temperature float DEFAULT 0.2,
       top_p float DEFAULT 0.9,
+      support_score_threshold float DEFAULT 0.25,
+      scope_alignment_score_threshold float DEFAULT 0.25,
+      grounded_threshold float DEFAULT 0.75,
+      partially_grounded_threshold float DEFAULT 0.50,
       specialization_list text[] DEFAULT ARRAY[
         'Combined Honours in Biochemistry, Chemistry',
         'Combined Honours in Biochemistry, Forensic Science',
@@ -330,6 +334,10 @@ exports.up = (pgm) => {
       max_characters_per_ai_message,
       temperature,
       top_p,
+      support_score_threshold,
+      scope_alignment_score_threshold,
+      grounded_threshold,
+      partially_grounded_threshold,
       specialization_list,
       updated_by,
       updated_at
@@ -341,6 +349,10 @@ exports.up = (pgm) => {
       5000,
       0.2,
       0.9,
+      0.25,
+      0.25,
+      0.75,
+      0.50,
       ARRAY[
         'Combined Honours in Biochemistry, Chemistry',
         'Combined Honours in Biochemistry, Forensic Science',
