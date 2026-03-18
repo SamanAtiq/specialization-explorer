@@ -515,13 +515,13 @@ exports.up = (pgm) => {
       ),
       (
         'partial_hallucination_warning',
-        'Warning: Parts of this answer may not be fully supported by the retrieved UBC source content. Please verify the program details against the relevant UBC calendar page.',
+        'Warning: The knowledge base powering the AI-driven BSc Specialization Explorer contains information from within and outside of UBC-governed sources. Given the nature of the Explorer's LLM, parts of this answer may not be fully supported by the UBC source content and could contain inaccurate program or course details. Please verify against the relevant UBC calendar page.',
         700,
         1, TRUE, FALSE, NULL, now()
       ),
       (
         'full_hallucination_warning',
-        'Warning: This answer may not be reliably grounded in the retrieved UBC source content and could contain incorrect program details. Please verify against the relevant UBC calendar page.',
+        'Warning: The knowledge base powering the AI-driven BSc Specialization Explorer contains information from within and outside of UBC-governed sources. Given the nature of the Explorer's LLM, this answer may not be reliably grounded in the UBC source content and could contain incorrect program or course information. Please verify against the relevant UBC calendar page.',
         700,
         1, TRUE, FALSE, NULL, now()
       )
