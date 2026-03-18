@@ -239,6 +239,8 @@ exports.handler = async (event) => {
           "detective_phase_prompt",
           "suggestion_phase_prompt",
           "welcome_message",
+          "partial_hallucination_warning",
+          "full_hallucination_warning",
         ]);
 
         // Validate system_message_type
@@ -298,6 +300,32 @@ exports.handler = async (event) => {
               WHERE type = ${messageType}::system_message_type
             `;
 
+            const limitRows = await tx`
+              SELECT character_limit
+              FROM system_messages
+              WHERE type = ${messageType}::system_message_type
+              ORDER BY is_active DESC, version DESC, created_at DESC
+              LIMIT 1
+            `;
+
+            const defaultCharacterLimit =
+              messageType === "guardrails" || messageType === "system_instructions"
+                ? 1000
+                : 700;
+
+            const characterLimit =
+              limitRows.length > 0 && typeof limitRows[0].character_limit === "number"
+                ? limitRows[0].character_limit
+                : defaultCharacterLimit;
+
+            if (content.length > characterLimit) {
+              return {
+                kind: "too_long",
+                character_limit: characterLimit,
+                content_length: content.length,
+              };
+            }
+
             await tx`
               UPDATE system_messages
               SET is_active = false
@@ -306,10 +334,19 @@ exports.handler = async (event) => {
             `;
 
             const inserted = await tx`
-              INSERT INTO system_messages (type, content, version, is_active, created_by, created_at)
+              INSERT INTO system_messages (
+                type,
+                content,
+                character_limit,
+                version,
+                is_active,
+                created_by,
+                created_at
+              )
               VALUES (
                 ${messageType}::system_message_type,
                 ${content},
+                ${characterLimit},
                 ${next_version},
                 true,
                 ${createdByUserId},
@@ -323,8 +360,11 @@ exports.handler = async (event) => {
                 sm.id,
                 sm.type,
                 sm.content,
+                sm.character_limit,
                 sm.version,
                 sm.is_active,
+                sm.affects_text_generation,
+                sm.created_by,
                 u.email AS created_by_email,
                 sm.created_at
               FROM system_messages sm
@@ -333,11 +373,24 @@ exports.handler = async (event) => {
               LIMIT 1
             `;
 
-            return out[0];
+            return {
+              kind: "created",
+              row: out[0],
+            };
           });
 
+          if (created.kind === "too_long") {
+            response.statusCode = 400;
+            response.body = JSON.stringify({
+              error: "content exceeds character_limit",
+              character_limit: created.character_limit,
+              content_length: created.content_length,
+            });
+            break;
+          }
+
           response.statusCode = 200;
-          response.body = JSON.stringify(created);
+          response.body = JSON.stringify(created.row);
           break;
         } catch (err) {
           console.error("POST /admin/system-messages/{system_message_type} failed:", err);
@@ -371,6 +424,8 @@ exports.handler = async (event) => {
           "detective_phase_prompt",
           "suggestion_phase_prompt",
           "welcome_message",
+          "partial_hallucination_warning",
+          "full_hallucination_warning",
         ]);
 
         // Validate path params
@@ -515,6 +570,8 @@ exports.handler = async (event) => {
           "detective_phase_prompt",
           "suggestion_phase_prompt",
           "welcome_message",
+          "partial_hallucination_warning",
+          "full_hallucination_warning",
         ]);
 
         // Validate path params
@@ -585,8 +642,10 @@ exports.handler = async (event) => {
                   sm.id,
                   sm.type,
                   sm.content,
+                  sm.character_limit,
                   sm.version,
                   sm.is_active,
+                  sm.affects_text_generation,
                   sm.created_by,
                   u.email AS created_by_email,
                   sm.created_at
@@ -634,8 +693,10 @@ exports.handler = async (event) => {
                 sm.id,
                 sm.type,
                 sm.content,
+                sm.character_limit,
                 sm.version,
                 sm.is_active,
+                sm.affects_text_generation,
                 sm.created_by,
                 u.email AS created_by_email,
                 sm.created_at

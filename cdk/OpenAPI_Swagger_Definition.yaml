@@ -797,6 +797,8 @@ paths:
               - detective_phase_prompt
               - suggestion_phase_prompt
               - welcome_message
+              - partial_hallucination_warning
+              - full_hallucination_warning
       requestBody:
         required: true
         content:
@@ -826,8 +828,10 @@ paths:
                   - id
                   - type
                   - content
+                  - character_limit
                   - version
                   - is_active
+                  - affects_text_generation
                   - created_at
                 properties:
                   id:
@@ -838,21 +842,31 @@ paths:
                     description: System message type
                   content:
                     type: string
+                  character_limit:
+                    type: integer
+                    description: Character limit enforced for this system message version
                   version:
                     type: integer
                     description: New version number (increments per type)
                   is_active:
                     type: boolean
                     description: Whether this version is active (should be true)
+                  affects_text_generation:
+                    type: boolean
+                    description: Whether this message affects text generation
+                  created_by:
+                    type: string
+                    format: uuid
+                    nullable: true
                   created_by_email:
                     type: string
-                    description: Email of the admin who created it (empty if unavailable)
-                    example: "admin@example.com"
+                    format: email
+                    nullable: true
                   created_at:
                     type: string
                     format: date-time
         "400":
-          description: Bad Request - Invalid type or missing/invalid content/adminEmail
+          description: Bad Request - Invalid type, missing/invalid content/adminEmail, or content exceeds character limit
         "401":
           description: Unauthorized
         "403":
@@ -894,6 +908,8 @@ paths:
               - detective_phase_prompt
               - suggestion_phase_prompt
               - welcome_message
+              - partial_hallucination_warning
+              - full_hallucination_warning
         - name: version_id
           in: path
           required: true
@@ -951,6 +967,8 @@ paths:
                           - detective_phase_prompt
                           - suggestion_phase_prompt
                           - welcome_message
+                          - partial_hallucination_warning
+                          - full_hallucination_warning
                       version:
                         type: integer
                         minimum: 1
@@ -1005,6 +1023,8 @@ paths:
               - detective_phase_prompt
               - suggestion_phase_prompt
               - welcome_message
+              - partial_hallucination_warning
+              - full_hallucination_warning
         - name: version_id
           in: path
           required: true
@@ -1053,8 +1073,10 @@ paths:
                       - id
                       - type
                       - content
+                      - character_limit
                       - version
                       - is_active
+                      - affects_text_generation
                       - created_at
                     properties:
                       id:
@@ -1074,6 +1096,9 @@ paths:
                           - welcome_message
                       content:
                         type: string
+                      character_limit:
+                        type: integer
+                        description: Character limit enforced for this system message version
                       version:
                         type: integer
                         minimum: 1
@@ -1081,6 +1106,9 @@ paths:
                         type: boolean
                         description: Should be true
                         example: true
+                      affects_text_generation:
+                        type: boolean
+                        description: Whether this message affects text generation
                       created_by:
                         type: string
                         format: uuid
