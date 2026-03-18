@@ -990,10 +990,10 @@ export class ApiGatewayStack extends cdk.Stack {
         `arn:aws:bedrock:${this.region}::foundation-model/mistral.mistral-large-2402-v1:0`,
         // Claude Sonnet 3 (Direct Foundation Models)
         `arn:aws:bedrock:${this.region}::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0`,
-        // Claude Sonnet 4.6 (Converse currently resolves this model in us-east-1)
+        // Claude Sonnet 4.6 (Converse currently resolves this model in us-east-2)
         `arn:aws:bedrock:*:*:inference-profile/us.anthropic.claude-sonnet-4-6`,
         `arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-6`,
-        // Claude Haiku 4.5 (Converse currently resolves this model in us-east-1)
+        // Claude Haiku 4.5 (Converse currently resolves this model in us-east-2)
         `arn:aws:bedrock:*::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0`,
         `arn:aws:bedrock:*:*:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0`,
         // Knowledge Base

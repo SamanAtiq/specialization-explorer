@@ -19,7 +19,7 @@ MODEL_ARN = os.getenv(
 )
 
 REGION = os.getenv("REGION", "ca-central-1")
-LLM_REGION = os.getenv("LLM_REGION", "us-east-1")
+LLM_REGION = os.getenv("LLM_REGION", "us-west-2")
 
 # Chat Configuration
 DAILY_TOKEN_LIMIT = 10000
