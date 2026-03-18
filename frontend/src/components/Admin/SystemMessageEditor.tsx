@@ -54,6 +54,7 @@ export type SystemMessageVersion = {
   id: string;
   type: SystemMessageType;
   content: string;
+  character_limit: number;
   version: number;
   is_active: boolean;
   affects_text_generation: boolean;
@@ -249,6 +250,12 @@ export default function SystemMessageEditor({
     placement === "phase_suggestion" ? "SUGGESTION" : "DETECTIVE"
   );
 
+  // character limit
+  const characterLimit = current?.character_limit ?? 700;
+  const currentLength = draft.length;
+  const remainingCharacters = characterLimit - currentLength;
+  const isOverLimit = currentLength > characterLimit;
+
   useEffect(() => {
     setDraft(current?.content ?? "");
     setIsDirty(false);
@@ -274,6 +281,10 @@ export default function SystemMessageEditor({
     const trimmed = (draft ?? "").trim();
 
     if (!trimmed) return;
+    if (trimmed.length > characterLimit) {
+      setSaveError(`Message exceeds the ${characterLimit}-character limit.`);
+      return;
+    }
 
     setSaving(true);
     setSaveError(null);
@@ -293,6 +304,7 @@ export default function SystemMessageEditor({
         id: `local-${type}-v${nextVersionNumber(sorted)}-${Date.now()}`,
         type,
         content: trimmed,
+        character_limit: current?.character_limit ?? 700,
         version: nextVersionNumber(sorted),
         is_active: true,
         affects_text_generation: defaultAffectsTextGeneration(type),
@@ -468,18 +480,41 @@ export default function SystemMessageEditor({
         {/* Content editor */}
         <div className="space-y-2">
           <Label>Message content</Label>
-          <textarea
-            value={draft}
-            onChange={(e) => {
-              setDraft(e.target.value);
-              setIsDirty(true);
-            }}
-            readOnly={!canEdit}
-            className={[
-              "flex min-h-[240px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background font-mono",
-              !canEdit ? "opacity-70 cursor-not-allowed" : "",
-            ].join(" ")}
-          />
+
+          <div className="space-y-2">
+            <textarea
+              value={draft}
+              onChange={(e) => {
+                setDraft(e.target.value);
+                setIsDirty(true);
+                if (saveError) setSaveError(null);
+              }}
+              readOnly={!canEdit}
+              className={[
+                "flex min-h-[240px] w-full rounded-md border px-3 py-2 text-sm ring-offset-background font-mono",
+                isOverLimit ? "border-red-300 focus-visible:ring-red-200" : "border-input",
+                !canEdit ? "opacity-70 cursor-not-allowed bg-background" : "bg-background",
+              ].join(" ")}
+            />
+
+            <div className="flex items-center justify-between text-xs">
+              <div>
+                {isOverLimit ? (
+                  <span className="text-red-600 font-medium">
+                    Exceeds limit by {Math.abs(remainingCharacters)} character{Math.abs(remainingCharacters) === 1 ? "" : "s"}.
+                  </span>
+                ) : (
+                  <span className="text-gray-500">
+                    Limit: {characterLimit} characters
+                  </span>
+                )}
+              </div>
+
+              <div className={isOverLimit ? "text-red-600 font-medium" : "text-gray-500"}>
+                {currentLength} / {characterLimit}
+              </div>
+            </div>
+          </div>
 
           {saveError ? (
             <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
@@ -503,7 +538,14 @@ export default function SystemMessageEditor({
           <Button
             type="button"
             onClick={handleSave}
-            disabled={saving || deleting || !canEdit || !isDirty || !(draft ?? "").trim()}
+            disabled={
+              saving ||
+              deleting ||
+              !canEdit ||
+              !isDirty ||
+              !(draft ?? "").trim() ||
+              isOverLimit
+            }
             className="bg-[#2c5f7c] hover:bg-[#234d63]"
           >
             <Save className="mr-2 h-4 w-4" />
