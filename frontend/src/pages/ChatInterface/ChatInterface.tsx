@@ -54,7 +54,8 @@ export default function AIChatPage() {
 
   // Auto-scroll to bottom when messages change or when typing starts
   const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    // "end" aligns the bottom of the element with the bottom of the scrollable area
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, []);
 
   useEffect(() => {
@@ -701,72 +702,56 @@ export default function AIChatPage() {
   }
 
   return (
-    <div className="w-full max-w-2xl 2xl:max-w-3xl px-4 py-4">
-      <div
-        className={`flex flex-col w-full ${messages.length === 0
-          ? "justify-center"
-          : "justify-between min-h-[90vh]"
-          }`}
-      >
-        <div
-          className={`flex flex-col w-full max-w-2xl 2xl:max-w-3xl px-4 py-4 ${messages.length === 0
-            ? "justify-center"
-            : "justify-between min-h-[90vh]"
-            }`}
-        >
-          {/* top section */}
-          <div>
-            {messages.length === 0 ? (
-              <>
-                {/* Hero title */}
-                <h1 className="text-4xl font-bold text-center mb-4 leading-tight max-w-full break-words">
-                  What can I help with?
-                </h1>
-              </>
-            ) : (
-              /* messages area */
-              <div className="flex flex-col gap-4 mb-6">
-                {isLoadingHistory ? (
-                  <div className="flex items-center justify-center py-8">
-                    <p className="text-muted-foreground">
-                      Loading chat history...
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    {messages.map((m) => messageFormatter(m))}
-                    <div ref={messagesEndRef} />
-                  </>
-                )}
+    <div className="flex flex-col h-[calc(100vh-80px)] w-full">
+      {messages.length === 0 ? (
+        // Empty state (Centered)
+        <div className="flex-1 flex flex-col items-center justify-center text-center pb-12 w-full max-w-2xl 2xl:max-w-3xl mx-auto px-4">
+          <h1 className="text-4xl font-bold mb-4 leading-tight max-w-full break-words">
+            What can I help with?
+          </h1>
+        </div>
+      ) : (
+        // Scrollable messages area (Full width for edge scrollbar)
+        <div className="flex-1 overflow-y-auto w-full">
+          <div className="w-full max-w-2xl 2xl:max-w-3xl mx-auto flex flex-col gap-4 pt-4 pb-2 px-4">
+            {isLoadingHistory ? (
+              <div className="flex items-center justify-center py-8">
+                <p className="text-muted-foreground">Loading chat history...</p>
               </div>
+            ) : (
+              <>
+                {messages.map((m) => messageFormatter(m))}
+                {/* Keep the ref right at the bottom of the scrollable list */}
+                <div ref={messagesEndRef} className="h-4 shrink-0" />
+              </>
             )}
           </div>
+        </div>
+      )}
 
-          {/* thebottom section */}
-          <div>
-            {/* Input Area */}
-            <div className="relative mb-6">
-              <AiChatInput
-                value={message}
-                onChange={(val: string) => setMessage(val)}
-                placeholder={
-                  isTokenLimitReached
-                    ? `Daily limit reached. Resets at ${tokenResetTime || "soon"}`
-                    : isStreaming
-                      ? "Specialization Explorer is thinking..."
-                      : "Message Specialization Explorer..."
-                }
-                onSend={sendMessage}
-                disabled={isTokenLimitReached || isStreaming}
-              />
-            </div>
+      {/* Statically bolted input area at the bottom */}
+      <div className="shrink-0 w-full bg-background pt-2 pb-4">
+        <div className="w-full max-w-2xl 2xl:max-w-3xl mx-auto px-4">
+          <div className="relative mb-2">
+            <AiChatInput
+              value={message}
+              onChange={(val: string) => setMessage(val)}
+              placeholder={
+                isTokenLimitReached
+                  ? `Daily limit reached. Resets at ${tokenResetTime || "soon"}`
+                  : isStreaming
+                  ? "Specialization Explorer is thinking..."
+                  : "Message Specialization Explorer..."
+              }
+              onSend={sendMessage}
+              disabled={isTokenLimitReached || isStreaming}
+            />
+          </div>
 
-            {/* AI Disclaimer */}
-            <div className="mt-4 text-center">
-              <p className="text-xs text-muted-foreground">
-                AI can make mistakes. Check important info.
-              </p>
-            </div>
+          <div className="text-center">
+            <p className="text-xs text-muted-foreground">
+              AI can make mistakes. Check important info.
+            </p>
           </div>
         </div>
       </div>

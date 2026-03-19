@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { ChevronDown, ChevronUp, BookOpen, ExternalLink, Play, Pause } from "lucide-react";
-import { useSpeech } from "@/contexts/SpeechContext";
+import { ChevronDown, ChevronUp, BookOpen, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -29,22 +28,6 @@ export default function AIChatMessage({
   id,
 }: AIChatMessageProps) {
   const [showSources, setShowSources] = useState(false);
-  const { settings, speak, cancel, isSpeaking, currentUtteranceId } = useSpeech();
-  const isPlaying = isSpeaking && currentUtteranceId === id;
-
-  useEffect(() => {
-    try {
-      if (!settings.enabled) return;
-      if (!settings.autoplay) return;
-      if (settings.mode === "user") return; // don't autoplay user messages
-      if (isTyping) return; // don't autoplay while typing
-      if (!messageTime || !initialLoadTime) return;
-      if (messageTime < initialLoadTime) return; // only autoplay messages that arrived after initial load
-      speak(text, { id });
-    } catch (e) {
-      console.error("Speech autoplay failed", e);
-    }
-  }, [settings, isTyping, messageTime, initialLoadTime, speak]);
 
   const formatSource = (source: any) => {
     if (typeof source === "string") {
@@ -324,19 +307,6 @@ export default function AIChatMessage({
             </div>
           )}
 
-          {/* Per-message speech action */}
-          <div className="flex justify-end mt-2">
-            <button
-              className="text-muted-foreground hover:text-foreground p-1"
-              onClick={() => {
-                if (isPlaying) cancel();
-                else speak(text, { enabled: true, id });
-              }}
-              aria-label={isSpeaking ? "Stop narration" : "Read aloud"}
-            >
-              {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-            </button>
-          </div>
         </CardContent>
       </Card>
     </div>
