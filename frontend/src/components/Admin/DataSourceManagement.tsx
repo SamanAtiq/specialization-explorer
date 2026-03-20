@@ -774,7 +774,7 @@ export default function DataSourceManagement() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredDataSources.map((ds) => {
+                  pagedDataSources.map((ds) => {
                     const run = latestRunBySourceId.get(ds.id);
                     const status = run?.status ?? "no_runs";
                     const isExpandable =
