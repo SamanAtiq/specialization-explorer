@@ -148,6 +148,78 @@ def _create_kb_and_data_sources(props):
         'web_ds_id': web_ds_id,
     }
 
+
+def _ensure_data_sources_for_kb(kb_id, props):
+    name = props['Name']
+    s3_ds_id = ''
+    web_ds_id = ''
+
+    response = bedrock_agent.list_data_sources(knowledgeBaseId=kb_id)
+    for ds in response.get('dataSourceSummaries', []):
+        ds_name = ds.get('name', '')
+        ds_id = ds.get('dataSourceId', '')
+        if ds_name == f"{name}-s3-source":
+            s3_ds_id = ds_id
+        elif ds_name == f"{name}-web-source":
+            web_ds_id = ds_id
+
+    if not s3_ds_id and props.get('S3BucketArn'):
+        logger.info("S3 data source missing on update; creating it.")
+        ds_response = bedrock_agent.create_data_source(
+            knowledgeBaseId=kb_id,
+            name=f"{name}-s3-source",
+            dataSourceConfiguration={
+                'type': 'S3',
+                's3Configuration': {
+                    'bucketArn': props.get('S3BucketArn')
+                }
+            },
+            vectorIngestionConfiguration={
+                'chunkingConfiguration': {
+                    'chunkingStrategy': 'SEMANTIC',
+                    'semanticChunkingConfiguration': {
+                        'maxTokens': 512,
+                        'bufferSize': 1,
+                        'breakpointPercentileThreshold': 85
+                    }
+                }
+            }
+        )
+        s3_ds_id = ds_response['dataSource']['dataSourceId']
+
+    web_urls_str = props.get('WebCrawlerUrls', '')
+    if not web_ds_id and web_urls_str and web_urls_str != "dummy-value":
+        urls = [url.strip() for url in web_urls_str.split(',') if url.strip()]
+        if urls:
+            logger.info("Web data source missing on update; creating it.")
+            ds_response = bedrock_agent.create_data_source(
+                knowledgeBaseId=kb_id,
+                name=f"{name}-web-source",
+                dataSourceConfiguration={
+                    'type': 'WEB',
+                    'webConfiguration': {
+                        'sourceConfiguration': {
+                            'urlConfiguration': {
+                                'seedUrls': [{'url': url} for url in urls]
+                            }
+                        }
+                    }
+                },
+                vectorIngestionConfiguration={
+                    'chunkingConfiguration': {
+                        'chunkingStrategy': 'SEMANTIC',
+                        'semanticChunkingConfiguration': {
+                            'maxTokens': 512,
+                            'bufferSize': 1,
+                            'breakpointPercentileThreshold': 85
+                        }
+                    }
+                }
+            )
+            web_ds_id = ds_response['dataSource']['dataSourceId']
+
+    return s3_ds_id, web_ds_id
+
 def handler(event, context):
     logger.info(f"Received event: {json.dumps(event)}")
     request_type = event['RequestType']
@@ -192,14 +264,7 @@ def on_update(event):
 
     try:
         bedrock_agent.get_knowledge_base(knowledgeBaseId=physical_id)
-        response = bedrock_agent.list_data_sources(knowledgeBaseId=physical_id)
-        for ds in response.get('dataSourceSummaries', []):
-            ds_name = ds.get('name', '')
-            ds_id = ds.get('dataSourceId', '')
-            if ds_name.endswith('-s3-source'):
-                s3_ds_id = ds_id
-            elif ds_name.endswith('-web-source'):
-                web_ds_id = ds_id
+        s3_ds_id, web_ds_id = _ensure_data_sources_for_kb(physical_id, props)
         logger.info(f"Update operation requested for: {physical_id}. Returning existing attributes.")
     except bedrock_agent.exceptions.ResourceNotFoundException:
         logger.warning(
@@ -210,7 +275,8 @@ def on_update(event):
         s3_ds_id = created['s3_ds_id']
         web_ds_id = created['web_ds_id']
     except Exception as e:
-        logger.warning(f"Could not list data sources for update response: {str(e)}")
+        logger.error(f"Update failed while reconciling knowledge base/data sources: {str(e)}")
+        raise
 
     return {
         'PhysicalResourceId': effective_kb_id,

@@ -281,9 +281,11 @@ export class KnowledgeBaseStack extends Stack {
       effect: iam.Effect.ALLOW,
       actions: [
         "bedrock:CreateKnowledgeBase",
+        "bedrock:GetKnowledgeBase",
         "bedrock:UpdateKnowledgeBase",
         "bedrock:DeleteKnowledgeBase",
         "bedrock:CreateDataSource",
+        "bedrock:ListDataSources",
         "bedrock:UpdateDataSource",
         "bedrock:DeleteDataSource",
         "iam:PassRole"
