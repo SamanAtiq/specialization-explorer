@@ -4,7 +4,8 @@ import time
 from urllib.parse import urlparse
 
 import boto3
-from opensearchpy import AWSV4SignerAuth, OpenSearch, RequestsHttpConnection, exceptions
+from opensearchpy import OpenSearch, RequestsHttpConnection, exceptions
+from requests_aws4auth import AWS4Auth
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -30,11 +31,25 @@ def normalize_endpoint(endpoint: str) -> str:
 
 
 def build_client(endpoint: str, region: str) -> OpenSearch:
-    credentials = boto3.Session().get_credentials()
-    auth = AWSV4SignerAuth(credentials, region, "aoss")
+    session = boto3.Session()
+    credentials = session.get_credentials()
+    if credentials is None:
+        raise RuntimeError("Unable to load AWS credentials for SigV4 signing")
+    frozen = credentials.get_frozen_credentials()
 
-    parsed = urlparse(endpoint)
+    auth = AWS4Auth(
+        frozen.access_key,
+        frozen.secret_key,
+        region,
+        "aoss",
+        session_token=frozen.token,
+    )
+
+    normalized = normalize_endpoint(endpoint)
+    parsed = urlparse(normalized)
     host = parsed.netloc or parsed.path
+    if "/" in host:
+        host = host.split("/")[0]
 
     return OpenSearch(
         hosts=[{"host": host, "port": 443}],
@@ -117,19 +132,28 @@ def ensure_index_with_propagation(client: OpenSearch, props: dict) -> None:
         except exceptions.TransportError as error:
             status_code = getattr(error, "status_code", 0)
             text = error_message(error)
-            forbidden = status_code == 403 or "forbidden" in text.lower()
+            lowered = text.lower()
+            transient_auth_or_readiness = (
+                status_code in (401, 403, 429, 500, 502, 503, 504)
+                or "forbidden" in lowered
+                or "authentication" in lowered
+                or "unauthorized" in lowered
+            )
 
             if is_index_already_exists(text):
                 logger.info("Index '%s' already exists (race condition). Treating as success.", index_name)
                 return
 
-            if forbidden:
+            if transient_auth_or_readiness:
                 seconds_left = max(0, int(deadline - time.time()))
                 logger.warning(
-                    "Attempt %s received Forbidden (403/TransportError). Waiting %ss for AOSS policy propagation. Remaining retry window: %ss.",
+                    "Attempt %s received transient auth/readiness error (status=%s). "
+                    "Waiting %ss for AOSS policy propagation/readiness. Remaining retry window: %ss. Error: %s",
                     attempt,
+                    status_code,
                     FORBIDDEN_RETRY_SLEEP_SECONDS,
                     seconds_left,
+                    text,
                 )
                 sleep(FORBIDDEN_RETRY_SLEEP_SECONDS)
                 continue
@@ -164,7 +188,13 @@ def wait_for_index_stabilization(client: OpenSearch, index_name: str) -> None:
         except exceptions.TransportError as error:
             status_code = getattr(error, "status_code", 0)
             text = error_message(error).lower()
-            transient = status_code in (403, 404) or "no such index" in text or "forbidden" in text
+            transient = (
+                status_code in (401, 403, 404, 429, 500, 502, 503, 504)
+                or "no such index" in text
+                or "forbidden" in text
+                or "authentication" in text
+                or "unauthorized" in text
+            )
 
             if transient:
                 logger.info(
