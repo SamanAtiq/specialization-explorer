@@ -64,7 +64,7 @@ We believe in protecting your privacy and recognizes the sensitivity of Personal
 
 ## Your Information
 
-- Personal information is not collected when using unless explicitly submitted and saved by you (e.g., when creating a shared prompt that includes personal data).
+- Personal information is not collected when using unless explicitly submitted and saved by you.
 - User history is stored for 30 days. Local session data is persisted in your browser for approximately 30 days to provide continuity of session across reloads.
 - Only user prompts that you choose to save will remain beyond this timeframe; those saved prompts cannot be traced back to a user via the frontend UI.
 `;
