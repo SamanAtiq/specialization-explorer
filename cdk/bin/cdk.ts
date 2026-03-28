@@ -6,6 +6,7 @@ import { ApiGatewayStack } from "../lib/api-stack";
 import { DBFlowStack } from "../lib/dbFlow-stack";
 import { AmplifyStack } from "../lib/amplify-stack";
 import { CICDStack } from "../lib/cicd-stack";
+import { KnowledgeBaseStack } from "../lib/knowledge-base-stack";
 
 const app = new cdk.App();
 
@@ -44,16 +45,23 @@ const cicdStack = new CICDStack(app, `${StackPrefix}-CICD`, {
   environmentName: environment,
   lambdaFunctions: [
     {
-      name: "textGeneration",
-      functionName: `${StackPrefix}-Api-TextGenLambdaDockerFunction`,
-      sourceDir: "cdk/lambda/textGeneration",
+      name: "vectorIndexManagerSigV4",
+      functionName: `${StackPrefix}-KnowledgeBase-VectorIndexManagerFn`,
+      sourceDir: "cdk/lambda/vectorIndexManagerSigV4",
     },
   ],
   pathFilters: [
-    "cdk/lambda/dataIngestion/**",
-    "cdk/lambda/textGeneration/**",
+    "cdk/lambda/vectorIndexManagerSigV4/**",
   ],
 });
+
+const kbStack = new KnowledgeBaseStack(app, `${StackPrefix}-KnowledgeBase`, {
+  env,
+  stackPrefix: StackPrefix,
+  vectorIndexManagerRepository: cicdStack.ecrRepositories["vectorIndexManagerSigV4"],
+  vectorIndexManagerPipelineName: cicdStack.pipelineName,
+});
+kbStack.addDependency(cicdStack);
 
 const apiStack = new ApiGatewayStack(
   app,
@@ -63,9 +71,9 @@ const apiStack = new ApiGatewayStack(
   {
     env,
     ecrRepositories: cicdStack.ecrRepositories,
-    codeBuildProjects: cicdStack.buildProjects,
   }
 );
+apiStack.addDependency(kbStack);
 apiStack.addDependency(cicdStack);
 
 const amplifyStack = new AmplifyStack(app, `${StackPrefix}-Amplify`, apiStack, {
@@ -87,6 +95,7 @@ const stacks = [
   dbStack,
   dbFlowStack,
   cicdStack,
+  kbStack,
   apiStack,
   amplifyStack,
 ];

@@ -15,15 +15,9 @@ const {
   SecretsManagerClient,
   GetSecretValueCommand,
 } = require("@aws-sdk/client-secrets-manager");
-const {
-  SSMClient,
-  GetParameterCommand,
-  PutParameterCommand,
-} = require("@aws-sdk/client-ssm");
 
 let sqlConnection;
 const secretsManager = new SecretsManagerClient();
-const ssmClient = new SSMClient();
 
 const initConnection = async () => {
   if (!sqlConnection) {
@@ -780,258 +774,6 @@ exports.handler = async (event) => {
         response.body = JSON.stringify(data);
         break;
 
-      // GET /admin/prompt_templates - Get all prompt templates
-      case "GET /admin/prompt_templates":
-        const promptTemplates = await sqlConnection`
-          SELECT 
-            id,
-            name,
-            description,
-            type,
-            current_version_id,
-            created_by,
-            visibility,
-            metadata,
-            created_at,
-            updated_at
-          FROM prompt_templates
-          WHERE type = 'RAG' 
-          ORDER BY created_at DESC
-        `;
-
-        response.statusCode = 200;
-        response.body = JSON.stringify({ templates: promptTemplates });
-        break;
-
-      // GET /admin/prompt_templates/{template_id} - Get single prompt template
-      case "GET /admin/prompt_templates/{template_id}":
-        const getTemplateId = event.pathParameters?.template_id;
-        if (!getTemplateId) {
-          response.statusCode = 400;
-          response.body = JSON.stringify({ error: "Template ID is required" });
-          break;
-        }
-
-        const templateDetails = await sqlConnection`
-          SELECT 
-            id,
-            name,
-            description,
-            type,
-            current_version_id,
-            created_by,
-            visibility,
-            metadata,
-            created_at,
-            updated_at
-          FROM prompt_templates
-          WHERE id = ${getTemplateId}
-        `;
-
-        if (templateDetails.length === 0) {
-          response.statusCode = 404;
-          response.body = JSON.stringify({ error: "Template not found" });
-          break;
-        }
-
-        response.statusCode = 200;
-        response.body = JSON.stringify(templateDetails[0]);
-        break;
-
-      // POST /admin/prompt_templates - Create new prompt template
-      case "POST /admin/prompt_templates":
-        let templateData;
-        try {
-          templateData = parseBody(event.body);
-        } catch (error) {
-          response.statusCode = 400;
-          response.body = JSON.stringify({ error: error.message });
-          break;
-        }
-
-        const { name, description, type, visibility, metadata } = templateData;
-
-        // Validate required fields
-        if (!name || !type) {
-          response.statusCode = 400;
-          response.body = JSON.stringify({
-            error: "name and type are required",
-          });
-          break;
-        }
-
-        // Validate type enum
-        const validTypes = [
-          "RAG",
-          "quiz_generation",
-          "mcq_generation",
-          "audio_generation",
-        ];
-        if (!validTypes.includes(type)) {
-          response.statusCode = 400;
-          response.body = JSON.stringify({
-            error: `Invalid type. Must be one of: ${validTypes.join(", ")}`,
-          });
-          break;
-        }
-
-        // Validate visibility enum if provided
-        const validVisibilities = ["private", "org", "public"];
-        if (visibility && !validVisibilities.includes(visibility)) {
-          response.statusCode = 400;
-          response.body = JSON.stringify({
-            error: `Invalid visibility. Must be one of: ${validVisibilities.join(
-              ", "
-            )}`,
-          });
-          break;
-        }
-
-        const newTemplate = await sqlConnection`
-          INSERT INTO prompt_templates (name, description, type, visibility, metadata)
-          VALUES (
-            ${name},
-            ${description || null},
-            ${type},
-            ${visibility || "private"},
-            ${metadata ? JSON.stringify(metadata) : "{}"}
-          )
-          RETURNING id, name, description, type, visibility, metadata, created_at, updated_at
-        `;
-
-        response.statusCode = 201;
-        response.body = JSON.stringify(newTemplate[0]);
-        break;
-
-      // PUT /admin/prompt_templates/{template_id} - Update prompt template
-      case "PUT /admin/prompt_templates/{template_id}":
-        const updateTemplateId = event.pathParameters?.template_id;
-        if (!updateTemplateId) {
-          response.statusCode = 400;
-          response.body = JSON.stringify({ error: "Template ID is required" });
-          break;
-        }
-
-        let updateTemplateData;
-        try {
-          updateTemplateData = parseBody(event.body);
-        } catch (error) {
-          response.statusCode = 400;
-          response.body = JSON.stringify({ error: error.message });
-          break;
-        }
-
-        // Build dynamic update object for templates
-        const allowedTemplateFields = [
-          "name",
-          "description",
-          "type",
-          "visibility",
-          "metadata",
-          "current_version_id",
-        ];
-        const updates = {};
-        let validationError = null;
-
-        for (const key of Object.keys(updateTemplateData)) {
-          if (
-            !allowedTemplateFields.includes(key) ||
-            updateTemplateData[key] === undefined
-          ) {
-            continue;
-          }
-
-          // Validate type if being updated
-          if (key === "type") {
-            const validTypes = [
-              "RAG",
-              "quiz_generation",
-              "mcq_generation",
-              "audio_generation",
-            ];
-            if (!validTypes.includes(updateTemplateData[key])) {
-              validationError = `Invalid type. Must be one of: ${validTypes.join(
-                ", "
-              )}`;
-              break;
-            }
-          }
-          // Validate visibility if being updated
-          if (key === "visibility") {
-            const validVisibilities = ["private", "org", "public"];
-            if (!validVisibilities.includes(updateTemplateData[key])) {
-              validationError = `Invalid visibility. Must be one of: ${validVisibilities.join(
-                ", "
-              )}`;
-              break;
-            }
-          }
-
-          // Stringify metadata if it's an object
-          if (
-            key === "metadata" &&
-            typeof updateTemplateData[key] === "object"
-          ) {
-            updates[key] = JSON.stringify(updateTemplateData[key]);
-          } else {
-            updates[key] = updateTemplateData[key];
-          }
-        }
-
-        if (validationError) {
-          response.statusCode = 400;
-          response.body = JSON.stringify({ error: validationError });
-          break;
-        }
-
-        if (Object.keys(updates).length === 0) {
-          response.statusCode = 400;
-          response.body = JSON.stringify({
-            error: "No valid fields to update",
-          });
-          break;
-        }
-
-        const updateTemplateResult = await sqlConnection`
-          UPDATE prompt_templates 
-          SET ${sqlConnection(updates, Object.keys(updates))}, updated_at = NOW()
-          WHERE id = ${updateTemplateId}
-          RETURNING id, name, description, type, visibility, metadata, current_version_id, created_at, updated_at
-        `;
-
-        if (updateTemplateResult.length === 0) {
-          response.statusCode = 404;
-          response.body = JSON.stringify({ error: "Template not found" });
-          break;
-        }
-
-        response.statusCode = 200;
-        response.body = JSON.stringify(updateTemplateResult[0]);
-        break;
-
-      // DELETE /admin/prompt_templates/{template_id} - Delete prompt template
-      case "DELETE /admin/prompt_templates/{template_id}":
-        const deleteTemplateId = event.pathParameters?.template_id;
-        if (!deleteTemplateId) {
-          response.statusCode = 400;
-          response.body = JSON.stringify({ error: "Template ID is required" });
-          break;
-        }
-
-        const deletedTemplate = await sqlConnection`
-          DELETE FROM prompt_templates WHERE id = ${deleteTemplateId} RETURNING id
-        `;
-
-        if (deletedTemplate.length === 0) {
-          response.statusCode = 404;
-          response.body = JSON.stringify({ error: "Template not found" });
-          break;
-        }
-
-        response.statusCode = 204;
-        response.body = "";
-        break;
-
       // Get analytics data
       case "GET /admin/analytics": {
         const qs = event.queryStringParameters ?? {};
@@ -1575,214 +1317,7 @@ exports.handler = async (event) => {
         break;
       }
 
-      // DEPRECATED since no longer needed in new project --> will delete later
-      // GET /admin/settings/token-limit - Get daily token limit
-      case "GET /admin/settings/token-limit":
-        try {
-          const getCommand = new GetParameterCommand({
-            Name: process.env.DAILY_TOKEN_LIMIT,
-          });
-          const parameterResult = await ssmClient.send(getCommand);
-
-          response.statusCode = 200;
-          response.body = JSON.stringify({
-            tokenLimit: parameterResult.Parameter.Value,
-          });
-        } catch (error) {
-          console.error("Error getting token limit:", error);
-          response.statusCode = 500;
-          response.body = JSON.stringify({
-            error: "Failed to get token limit",
-          });
-        }
-        break;
-
-      // DEPRECATED since no longer needed in new project --> will delete later
-      // PUT /admin/settings/token-limit - Update daily token limit
-      case "PUT /admin/settings/token-limit":
-        let tokenLimitData;
-        try {
-          tokenLimitData = parseBody(event.body);
-        } catch (error) {
-          response.statusCode = 400;
-          response.body = JSON.stringify({ error: error.message });
-          break;
-        }
-
-        const { tokenLimit } = tokenLimitData;
-
-        if (tokenLimit === undefined || tokenLimit === null) {
-          response.statusCode = 400;
-          response.body = JSON.stringify({ error: "tokenLimit is required" });
-          break;
-        }
-
-        // Validate tokenLimit is either "NONE" or a positive number
-        if (
-          tokenLimit !== "NONE" &&
-          (isNaN(tokenLimit) || parseInt(tokenLimit) < 0)
-        ) {
-          response.statusCode = 400;
-          response.body = JSON.stringify({
-            error: "tokenLimit must be 'NONE' or a positive number",
-          });
-          break;
-        }
-
-        try {
-          const putCommand = new PutParameterCommand({
-            Name: process.env.DAILY_TOKEN_LIMIT,
-            Value: String(tokenLimit),
-            Overwrite: true,
-          });
-          await ssmClient.send(putCommand);
-
-          response.statusCode = 200;
-          response.body = JSON.stringify({
-            message: "Token limit updated successfully",
-            tokenLimit: String(tokenLimit),
-          });
-        } catch (error) {
-          console.error("Error updating token limit:", error);
-          response.statusCode = 500;
-          response.body = JSON.stringify({
-            error: "Failed to update token limit",
-          });
-        }
-        break;
-
-      // DEPRECATED since no longer needed in new project --> will delete later
-      // GET /admin/settings/system-prompt - Get system prompt
-      case "GET /admin/settings/system-prompt":
-        try {
-          const result = await sqlConnection`
-            SELECT value FROM system_settings WHERE key = 'system_prompt'
-          `;
-
-          const systemPrompt = result.length > 0 ? result[0].value : "";
-
-          response.statusCode = 200;
-          response.body = JSON.stringify({
-            systemPrompt: systemPrompt,
-          });
-        } catch (error) {
-          console.error("Error getting system prompt:", error);
-          response.statusCode = 500;
-          response.body = JSON.stringify({
-            error: "Failed to get system prompt",
-          });
-        }
-        break;
-
-      // DEPRECATED since no longer needed in new project --> will delete later
-      // PUT /admin/settings/system-prompt - Update system prompt
-      case "PUT /admin/settings/system-prompt":
-        let promptData;
-        try {
-          promptData = parseBody(event.body);
-        } catch (error) {
-          response.statusCode = 400;
-          response.body = JSON.stringify({ error: error.message });
-          break;
-        }
-
-        const { systemPrompt } = promptData;
-
-        if (systemPrompt === undefined || systemPrompt === null) {
-          response.statusCode = 400;
-          response.body = JSON.stringify({ error: "systemPrompt is required" });
-          break;
-        }
-
-        try {
-          await sqlConnection`
-            INSERT INTO system_settings (key, value, updated_at)
-            VALUES ('system_prompt', ${systemPrompt}, NOW())
-            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
-          `;
-
-          response.statusCode = 200;
-          response.body = JSON.stringify({
-            message: "System prompt updated successfully",
-            systemPrompt: String(systemPrompt),
-          });
-        } catch (error) {
-          console.error("Error updating system prompt:", error);
-          response.statusCode = 500;
-          response.body = JSON.stringify({
-            error: "Failed to update system prompt",
-          });
-        }
-        break;
-
-      // DEPRECATED since no longer needed in new project --> will delete later
-      // GET /admin/settings/user-guidelines - Get user guidelines
-      case "GET /admin/settings/user-guidelines":
-        try {
-          const guidelinesResult = await sqlConnection`
-            SELECT value FROM system_settings WHERE key = 'user_guidelines'
-          `;
-
-          const userGuidelines =
-            guidelinesResult.length > 0 ? guidelinesResult[0].value : "";
-
-          response.statusCode = 200;
-          response.body = JSON.stringify({
-            userGuidelines: userGuidelines,
-          });
-        } catch (error) {
-          console.error("Error getting user guidelines:", error);
-          response.statusCode = 500;
-          response.body = JSON.stringify({
-            error: "Failed to get user guidelines",
-          });
-        }
-        break;
-
-      // DEPRECATED since no longer needed in new project --> will delete later
-      // PUT /admin/settings/user-guidelines - Update user guidelines
-      case "PUT /admin/settings/user-guidelines":
-        let guidelinesData;
-        try {
-          guidelinesData = parseBody(event.body);
-        } catch (error) {
-          response.statusCode = 400;
-          response.body = JSON.stringify({ error: error.message });
-          break;
-        }
-
-        const { userGuidelines } = guidelinesData;
-
-        if (userGuidelines === undefined || userGuidelines === null) {
-          response.statusCode = 400;
-          response.body = JSON.stringify({
-            error: "userGuidelines is required",
-          });
-          break;
-        }
-
-        try {
-          await sqlConnection`
-            INSERT INTO system_settings (key, value, updated_at)
-            VALUES ('user_guidelines', ${userGuidelines}, NOW())
-            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
-          `;
-
-          response.statusCode = 200;
-          response.body = JSON.stringify({
-            message: "User guidelines updated successfully",
-            userGuidelines: String(userGuidelines),
-          });
-        } catch (error) {
-          console.error("Error updating user guidelines:", error);
-          response.statusCode = 500;
-          response.body = JSON.stringify({
-            error: "Failed to update user guidelines",
-          });
-        }
-        break;
-
-      // GET /admin/reported-items - Get all reported FAQs and shared prompts
+      // GET /admin/reported-items - Get all reported FAQs
       case "GET /admin/reported-items":
         const reportedLimit = Math.min(
           parseInt(event.queryStringParameters?.limit) || 50,
@@ -1791,20 +1326,17 @@ exports.handler = async (event) => {
         const reportedOffset =
           parseInt(event.queryStringParameters?.offset) || 0;
 
-        // Get reported FAQs grouped by textbook
+        // Get reported FAQs
         const reportedFAQs = await sqlConnection`
           SELECT 
             f.id,
-            f.textbook_id,
             f.question_text,
             f.answer_text,
             f.usage_count,
             f.last_used_at,
             f.cached_at,
-            t.title as textbook_title,
             COUNT(*) OVER() as total_count
           FROM faq_cache f
-          LEFT JOIN textbooks t ON f.textbook_id = t.id
           WHERE f.reported = true
           ORDER BY f.cached_at DESC
           LIMIT ${reportedLimit} OFFSET ${reportedOffset}
@@ -1814,49 +1346,15 @@ exports.handler = async (event) => {
           reportedFAQs.length > 0 ? parseInt(reportedFAQs[0].total_count) : 0;
         const faqsList = reportedFAQs.map(({ total_count, ...faq }) => faq);
 
-        // Get reported shared prompts grouped by textbook
-        const reportedPrompts = await sqlConnection`
-          SELECT 
-            sp.id,
-            sp.textbook_id,
-            sp.title,
-            sp.prompt_text,
-            sp.visibility,
-            sp.tags,
-            sp.created_at,
-            t.title as textbook_title,
-            COUNT(*) OVER() as total_count
-          FROM shared_user_prompts sp
-          LEFT JOIN textbooks t ON sp.textbook_id = t.id
-          WHERE sp.reported = true
-          ORDER BY sp.created_at DESC
-          LIMIT ${reportedLimit} OFFSET ${reportedOffset}
-        `;
-
-        const promptsTotal =
-          reportedPrompts.length > 0
-            ? parseInt(reportedPrompts[0].total_count)
-            : 0;
-        const promptsList = reportedPrompts.map(
-          ({ total_count, ...prompt }) => prompt
-        );
-
         response.statusCode = 200;
         response.body = JSON.stringify({
           reportedFAQs: faqsList,
-          reportedPrompts: promptsList,
           pagination: {
             faqs: {
               limit: reportedLimit,
               offset: reportedOffset,
               total: faqsTotal,
               hasMore: reportedOffset + reportedLimit < faqsTotal,
-            },
-            prompts: {
-              limit: reportedLimit,
-              offset: reportedOffset,
-              total: promptsTotal,
-              hasMore: reportedOffset + reportedLimit < promptsTotal,
             },
           },
         });
@@ -1906,57 +1404,6 @@ exports.handler = async (event) => {
         if (deletedFaq.length === 0) {
           response.statusCode = 404;
           response.body = JSON.stringify({ error: "FAQ not found" });
-          break;
-        }
-
-        response.statusCode = 204;
-        response.body = "";
-        break;
-
-      // PUT /admin/reported-items/prompt/{prompt_id}/dismiss - Dismiss a reported prompt
-      case "PUT /admin/reported-items/prompt/{prompt_id}/dismiss":
-        const dismissPromptId = event.pathParameters?.prompt_id;
-        if (!dismissPromptId) {
-          response.statusCode = 400;
-          response.body = JSON.stringify({ error: "Prompt ID is required" });
-          break;
-        }
-
-        const dismissedPrompt = await sqlConnection`
-          UPDATE shared_user_prompts
-          SET reported = false
-          WHERE id = ${dismissPromptId}
-          RETURNING id
-        `;
-
-        if (dismissedPrompt.length === 0) {
-          response.statusCode = 404;
-          response.body = JSON.stringify({ error: "Prompt not found" });
-          break;
-        }
-
-        response.statusCode = 200;
-        response.body = JSON.stringify({ message: "Prompt report dismissed" });
-        break;
-
-      // DELETE /admin/reported-items/prompt/{prompt_id} - Delete a reported prompt
-      case "DELETE /admin/reported-items/prompt/{prompt_id}":
-        const deletePromptId = event.pathParameters?.prompt_id;
-        if (!deletePromptId) {
-          response.statusCode = 400;
-          response.body = JSON.stringify({ error: "Prompt ID is required" });
-          break;
-        }
-
-        const deletedPrompt = await sqlConnection`
-          DELETE FROM shared_user_prompts
-          WHERE id = ${deletePromptId}
-          RETURNING id
-        `;
-
-        if (deletedPrompt.length === 0) {
-          response.statusCode = 404;
-          response.body = JSON.stringify({ error: "Prompt not found" });
           break;
         }
 

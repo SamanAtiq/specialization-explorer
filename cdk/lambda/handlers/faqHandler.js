@@ -66,58 +66,6 @@ exports.handler = async (event) => {
     const pathData = event.httpMethod + " " + event.resource;
 
     switch (pathData) {
-      case "GET /textbooks/{textbook_id}/faq":
-        const faqTextbookId = event.pathParameters?.textbook_id;
-        if (!faqTextbookId) {
-          response.statusCode = 400;
-          response.body = JSON.stringify({ error: "Textbook ID is required" });
-          break;
-        }
-
-        const faqs = await sqlConnection`
-          SELECT id, question_text, answer_text, usage_count, last_used_at, cached_at
-          FROM faq_cache
-          WHERE textbook_id = ${faqTextbookId}
-          AND usage_count > 3
-          AND reported = false
-          AND sources IS NOT NULL
-          AND json_array_length(sources) > 0
-          ORDER BY usage_count DESC, cached_at DESC
-        `;
-
-        data = faqs;
-        response.body = JSON.stringify(data);
-        break;
-
-      case "POST /textbooks/{textbook_id}/faq":
-        const postFaqTextbookId = event.pathParameters?.textbook_id;
-        if (!postFaqTextbookId) {
-          response.statusCode = 400;
-          response.body = JSON.stringify({ error: "Textbook ID is required" });
-          break;
-        }
-
-        const faqData = parseBody(event.body);
-        const { question_text, answer_text } = faqData;
-        if (!question_text || !answer_text) {
-          response.statusCode = 400;
-          response.body = JSON.stringify({ error: "question_text and answer_text are required" });
-          break;
-        }
-
-        const normalized_question = question_text.toLowerCase().trim();
-
-        const newFaq = await sqlConnection`
-          INSERT INTO faq_cache (textbook_id, question_text, answer_text, normalized_question)
-          VALUES (${postFaqTextbookId}, ${question_text}, ${answer_text}, ${normalized_question})
-          RETURNING id, question_text, answer_text, usage_count, last_used_at, cached_at
-        `;
-
-        response.statusCode = 201;
-        data = newFaq[0];
-        response.body = JSON.stringify(data);
-        break;
-
       case "GET /faq/{faq_id}":
         const faqId = event.pathParameters?.faq_id;
         if (!faqId) {

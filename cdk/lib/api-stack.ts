@@ -18,7 +18,6 @@ import * as s3 from "aws-cdk-lib/aws-s3";
 import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import * as ssm from "aws-cdk-lib/aws-ssm";
 import * as logs from "aws-cdk-lib/aws-logs";
-import * as codebuild from "aws-cdk-lib/aws-codebuild";
 import * as ecr from "aws-cdk-lib/aws-ecr";
 import * as s3n from "aws-cdk-lib/aws-s3-notifications";
 import * as bedrock from "aws-cdk-lib/aws-bedrock";
@@ -27,7 +26,6 @@ import * as targets from "aws-cdk-lib/aws-events-targets";
 
 interface ApiGatewayStackProps extends cdk.StackProps {
   ecrRepositories: { [key: string]: ecr.Repository };
-  codeBuildProjects?: { [key: string]: codebuild.IProject };
 }
 
 export class ApiGatewayStack extends cdk.Stack {
@@ -923,23 +921,6 @@ export class ApiGatewayStack extends cdk.Stack {
       })
     );
 
-    // Allow triggering CodeBuild projects when images are missing
-    if (props.codeBuildProjects) {
-      const projectArns = Object.values(props.codeBuildProjects).map(
-        (proj) => proj.projectArn
-      );
-
-      if (projectArns.length > 0) {
-        ecrImageWaiterRole.addToPolicy(
-          new iam.PolicyStatement({
-            effect: iam.Effect.ALLOW,
-            actions: ["codebuild:StartBuild"],
-            resources: projectArns,
-          })
-        );
-      }
-    }
-
     ecrImageWaiterRole.addToPolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
@@ -1313,37 +1294,6 @@ export class ApiGatewayStack extends cdk.Stack {
       .defaultChild as lambda.CfnFunction;
     cfnLambda_admin.overrideLogicalId("adminFunction");
 
-    const lambdaPromptTemplateFunction = new lambda.Function(
-      this,
-      `${id}-promptTemplateFunction`,
-      {
-        runtime: lambda.Runtime.NODEJS_22_X,
-        code: lambda.Code.fromAsset("lambda"),
-        handler: "handlers/promptTemplateHandler.handler",
-        timeout: Duration.seconds(300),
-        vpc: vpcStack.vpc,
-        environment: {
-          SM_DB_CREDENTIALS: db.secretPathUser.secretName,
-          RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
-        },
-        functionName: `${id}-promptTemplateFunction`,
-        memorySize: 512,
-        layers: [postgres],
-        role: lambdaRole,
-        tracing: lambda.Tracing.ACTIVE,
-      }
-    );
-
-    lambdaPromptTemplateFunction.addPermission("AllowApiGatewayInvoke", {
-      principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
-      action: "lambda:InvokeFunction",
-      sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/prompt_templates*`,
-    });
-
-    const cfnLambda_promptTemplate = lambdaPromptTemplateFunction.node
-      .defaultChild as lambda.CfnFunction;
-    cfnLambda_promptTemplate.overrideLogicalId("promptTemplateFunction");
-
     // Define WebSocket API and related resources directly in ApiGatewayStack
     this.webSocketApi = new apigatewayv2.WebSocketApi(
       this,
@@ -1478,37 +1428,6 @@ export class ApiGatewayStack extends cdk.Stack {
       description: "WebSocket URL for real-time streaming",
       exportName: `${id}-WebSocketUrl`,
     });
-
-    const lambdaSharedUserPromptFunction = new lambda.Function(
-      this,
-      `${id}-sharedUserPromptFunction`,
-      {
-        runtime: lambda.Runtime.NODEJS_22_X,
-        code: lambda.Code.fromAsset("lambda"),
-        handler: "handlers/sharedUserPromptHandler.handler",
-        timeout: Duration.seconds(300),
-        vpc: vpcStack.vpc,
-        environment: {
-          SM_DB_CREDENTIALS: db.secretPathUser.secretName,
-          RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
-        },
-        functionName: `${id}-sharedUserPromptFunction`,
-        memorySize: 512,
-        layers: [postgres],
-        role: lambdaRole,
-        tracing: lambda.Tracing.ACTIVE,
-      }
-    );
-
-    lambdaSharedUserPromptFunction.addPermission("AllowApiGatewayInvoke", {
-      principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
-      action: "lambda:InvokeFunction",
-      sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/shared_prompts*`,
-    });
-
-    const cfnLambda_sharedUserPrompt = lambdaSharedUserPromptFunction.node
-      .defaultChild as lambda.CfnFunction;
-    cfnLambda_sharedUserPrompt.overrideLogicalId("sharedUserPromptFunction");
 
   }
 }

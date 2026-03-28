@@ -3,9 +3,14 @@ const {
   CodeBuildClient,
   StartBuildCommand,
 } = require("@aws-sdk/client-codebuild");
+const {
+  CodePipelineClient,
+  StartPipelineExecutionCommand,
+} = require("@aws-sdk/client-codepipeline");
 
 const ecr = new ECRClient({});
 const codebuild = new CodeBuildClient({});
+const codepipeline = new CodePipelineClient({});
 
 /**
  * Custom resource handler that waits for a Docker image to exist in ECR
@@ -21,6 +26,7 @@ exports.handler = async (event, context) => {
     MaxRetries = "60",
     RetryDelaySeconds = "30",
     CodeBuildProjectName,
+    CodePipelineName,
     TriggerBuildOnMissing = "false",
   } = ResourceProperties;
 
@@ -87,25 +93,38 @@ exports.handler = async (event, context) => {
             } seconds...`
           );
 
-          // On first miss, optionally trigger a CodeBuild build
+          // On first miss, optionally trigger a CodePipeline execution or CodeBuild build.
           if (
             !buildTriggered &&
-            TriggerBuildOnMissing.toString().toLowerCase() === "true" &&
-            CodeBuildProjectName
+            TriggerBuildOnMissing.toString().toLowerCase() === "true"
           ) {
             try {
-              console.log(
-                `Starting CodeBuild project ${CodeBuildProjectName} to build the image...`
-              );
-              await codebuild.send(
-                new StartBuildCommand({ projectName: CodeBuildProjectName })
-              );
-              buildTriggered = true;
+              if (CodePipelineName) {
+                console.log(
+                  `Starting CodePipeline execution for ${CodePipelineName} to build the image...`
+                );
+                await codepipeline.send(
+                  new StartPipelineExecutionCommand({ name: CodePipelineName })
+                );
+                buildTriggered = true;
+              } else if (CodeBuildProjectName) {
+                console.log(
+                  `Starting CodeBuild project ${CodeBuildProjectName} to build the image...`
+                );
+                await codebuild.send(
+                  new StartBuildCommand({ projectName: CodeBuildProjectName })
+                );
+                buildTriggered = true;
+              } else {
+                console.warn(
+                  "TriggerBuildOnMissing=true but neither CodePipelineName nor CodeBuildProjectName was provided."
+                );
+              }
             } catch (cbError) {
-              console.error(
-                `Failed to start CodeBuild project ${CodeBuildProjectName}:`,
-                cbError
-              );
+              const triggerTarget = CodePipelineName
+                ? `CodePipeline ${CodePipelineName}`
+                : `CodeBuild project ${CodeBuildProjectName}`;
+              console.error(`Failed to start ${triggerTarget}:`, cbError);
             }
           }
 

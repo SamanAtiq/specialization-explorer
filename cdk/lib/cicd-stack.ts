@@ -25,11 +25,13 @@ interface CICDStackProps extends cdk.StackProps {
 export class CICDStack extends cdk.Stack {
   public readonly ecrRepositories: { [key: string]: ecr.Repository } = {};
   public readonly buildProjects: { [key: string]: codebuild.IProject } = {};
+  public readonly pipelineName: string;
 
   constructor(scope: Construct, id: string, props: CICDStackProps) {
     super(scope, id, props);
 
     const envName = props.environmentName ?? "dev";
+    this.pipelineName = `${id}-DockerImagePipeline`;
 
     // Create a common role for all CodeBuild projects
     const codeBuildRole = new iam.Role(this, "DockerBuildRole", {
@@ -42,6 +44,10 @@ export class CICDStack extends cdk.Stack {
       )
     );
 
+    const lambdaUpdateArns = props.lambdaFunctions.map(
+      (fn) => `arn:aws:lambda:${this.region}:${this.account}:function:${fn.functionName}`
+    );
+
     codeBuildRole.addToPolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
@@ -50,9 +56,7 @@ export class CICDStack extends cdk.Stack {
           "lambda:UpdateFunctionCode",
           "lambda:UpdateFunctionConfiguration",
         ],
-        resources: [
-          `arn:aws:lambda:${this.region}:${this.account}:function:*-TextGenLambdaDockerFunction`,
-        ],
+        resources: lambdaUpdateArns,
       })
     );
 
@@ -61,7 +65,7 @@ export class CICDStack extends cdk.Stack {
 
     // Create the pipeline
     const pipeline = new codepipeline.Pipeline(this, "DockerImagePipeline", {
-      pipelineName: `${id}-DockerImagePipeline`,
+      pipelineName: this.pipelineName,
     });
 
     const username = cdk.aws_ssm.StringParameter.valueForStringParameter(
@@ -250,8 +254,6 @@ export class CICDStack extends cdk.Stack {
 
       this.buildProjects[lambda.name] = buildProject;
 
-      // Grant permissions to push to ECR
-      ecrRepo.grantPullPush(buildProject);
 
       // Add build action to the list
       buildActions.push(

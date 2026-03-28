@@ -58,7 +58,7 @@ export default function AIChatMessage({
           </div>
         );
       } else {
-        // Format textbook sources or other references
+        // Format non-URL sources or other references
         return (
           <div className="flex flex-col w-full">
             <div className="flex items-center gap-1.5">

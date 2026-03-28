@@ -12,7 +12,7 @@ exports.handler = async (event) => {
 
   try {
     const body = JSON.parse(event.body);
-    const { action, textbook_id, query, chat_session_id, user_id, is_intro_message } = body;
+    const { action, query, chat_session_id, user_id, is_intro_message } = body;
 
     if (action === "generate_text") {
       // Invoke the text generation Lambda function
@@ -21,7 +21,6 @@ exports.handler = async (event) => {
           id: chat_session_id,
         },
         body: JSON.stringify({
-          textbook_id: textbook_id,
           query: query,
           user_id: user_id,
           is_intro_message: is_intro_message

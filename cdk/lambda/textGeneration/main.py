@@ -171,6 +171,3 @@ def handler(event, context=None):
             },
             'body': json.dumps({'error': 'Internal server error'})
         }
-    finally:
-        if conn:
-            conn.close()
