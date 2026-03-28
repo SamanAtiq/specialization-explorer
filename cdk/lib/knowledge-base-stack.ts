@@ -276,7 +276,6 @@ export class KnowledgeBaseStack extends Stack {
       managedPolicies: [iam.ManagedPolicy.fromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole")],
     });
 
-    // 1. Bedrock API Permissions (Least Privilege Scoped)
     kbProvisionerRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
@@ -286,22 +285,10 @@ export class KnowledgeBaseStack extends Stack {
         "bedrock:DeleteKnowledgeBase",
         "bedrock:CreateDataSource",
         "bedrock:ListDataSources",
-        "bedrock:GetDataSource",
         "bedrock:UpdateDataSource",
-        "bedrock:DeleteDataSource"
+        "bedrock:DeleteDataSource",
+        "iam:PassRole"
       ],
-      resources: [
-        // Scopes access strictly to Knowledge Bases in this account/region
-        `arn:aws:bedrock:${this.region}:${this.account}:knowledge-base/*`,
-        // Scopes access strictly to Data Sources attached to Knowledge Bases in this account/region
-        `arn:aws:bedrock:${this.region}:${this.account}:knowledge-base/*/data-source/*`
-      ], 
-    }));
-
-    // 2. IAM PassRole Permission (Strictly scoped to the specific role and service)
-    kbProvisionerRole.addToPolicy(new iam.PolicyStatement({
-      effect: iam.Effect.ALLOW,
-      actions: ["iam:PassRole"],
       resources: [knowledgeBaseRole.roleArn], 
       conditions: {
         StringEquals: {
