@@ -94,7 +94,7 @@ export class KnowledgeBaseStack extends Stack {
           { ResourceType: "collection", Resource: [`collection/${collectionName}`] },
           { ResourceType: "dashboard", Resource: [`collection/${collectionName}`] },
         ],
-        AllowFromPublic: true,
+        AllowFromPublic: false,
       }]),
     });
 
