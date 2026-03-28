@@ -354,6 +354,123 @@ def _start_ingestion(knowledge_base_id: str, data_source_id: str) -> dict:
     )
     return resp["ingestionJob"]
 
+def _get_user_id_by_email(connection, email: str) -> str | None:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT id
+            FROM users
+            WHERE email = %s
+            LIMIT 1
+            """,
+            (email,),
+        )
+        row = cursor.fetchone()
+        return str(row[0]) if row else None
+
+
+def _upsert_data_source_row(
+    connection,
+    *,
+    bedrock_data_source_id: str,
+    name: str,
+    data_source_type: str,
+    include_patterns: list[str],
+    exclude_patterns: list[str],
+    created_by_user_id: str,
+    metadata: dict,
+) -> str:
+    with connection.cursor() as cursor:
+        # try to find existing website URL
+        cursor.execute(
+            """
+            SELECT id
+            FROM data_sources
+            WHERE metadata->>'bedrock_data_source_id' = %s
+            LIMIT 1
+            """,
+            (bedrock_data_source_id,),
+        )
+        existing = cursor.fetchone()
+
+        if existing:
+            data_source_row_id = str(existing[0])
+            cursor.execute(
+                """
+                UPDATE data_sources
+                SET
+                    name = %s,
+                    type = %s::data_source_type,
+                    include_patterns = %s,
+                    exclude_patterns = %s,
+                    metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+                WHERE id = %s::uuid
+                """,
+                (
+                    name,
+                    data_source_type,
+                    include_patterns if include_patterns else None,
+                    exclude_patterns if exclude_patterns else None,
+                    json.dumps(metadata),
+                    data_source_row_id,
+                ),
+            )
+            return data_source_row_id
+
+        cursor.execute(
+            """
+            INSERT INTO data_sources (
+                name,
+                type,
+                include_patterns,
+                exclude_patterns,
+                created_by,
+                metadata
+            )
+            VALUES (%s, %s::data_source_type, %s, %s, %s::uuid, %s::jsonb)
+            RETURNING id
+            """,
+            (
+                name,
+                data_source_type,
+                include_patterns if include_patterns else None,
+                exclude_patterns if exclude_patterns else None,
+                created_by_user_id,
+                json.dumps(metadata),
+            ),
+        )
+        inserted = cursor.fetchone()
+        return str(inserted[0])
+
+
+def _insert_ingestion_run_row(
+    connection,
+    *,
+    data_source_row_id: str,
+    bedrock_ingestion_job_id: str,
+) -> str:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            INSERT INTO ingestion_runs (
+                data_source_id,
+                status,
+                error_message,
+                metadata
+            )
+            VALUES (%s::uuid, %s::ingestion_status, NULL, %s::jsonb)
+            RETURNING id
+            """,
+            (
+                data_source_row_id,
+                "running",
+                json.dumps({
+                    "bedrock_ingestion_job_id": bedrock_ingestion_job_id
+                }),
+            ),
+        )
+        row = cursor.fetchone()
+        return str(row[0])
 
 def add_website(event, body, connection, kb_id):
     name = body.get("name")
@@ -422,6 +539,41 @@ def add_website(event, body, connection, kb_id):
             )
             ingestion_job = _start_ingestion(kb_id, updated_data_source["dataSourceId"])
 
+            created_by_user_id = _get_user_id_by_email(connection, created_by)
+            if not created_by_user_id:
+                return _response(400, {"error": "Admin user not found in database"})
+
+            try:
+                db_metadata = {
+                    "bedrock_data_source_id": updated_data_source["dataSourceId"],
+                    "bedrock_data_source_name": updated_data_source["name"],
+                    "seed_url": name,
+                    "source": "bedrock_web_crawler",
+                    "action": "updated_existing_data_source",
+                }
+
+                data_source_row_id = _upsert_data_source_row(
+                    connection,
+                    bedrock_data_source_id=updated_data_source["dataSourceId"],
+                    name=name,
+                    data_source_type="website",
+                    include_patterns=include_patterns,
+                    exclude_patterns=exclude_patterns,
+                    created_by_user_id=created_by_user_id,
+                    metadata=db_metadata,
+                )
+
+                ingestion_run_row_id = _insert_ingestion_run_row(
+                    connection,
+                    data_source_row_id=data_source_row_id,
+                    bedrock_ingestion_job_id=ingestion_job["ingestionJobId"],
+                )
+
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
+
             return _response(
                 200,
                 {
@@ -432,6 +584,8 @@ def add_website(event, body, connection, kb_id):
                     "data_source_id": updated_data_source["dataSourceId"],
                     "data_source_name": updated_data_source["name"],
                     "ingestion_job_id": ingestion_job["ingestionJobId"],
+                    "db_data_source_id": data_source_row_id,
+                    "db_ingestion_run_id": ingestion_run_row_id,
                 },
             )
 
@@ -456,6 +610,41 @@ def add_website(event, body, connection, kb_id):
             )
             ingestion_job = _start_ingestion(kb_id, created_data_source["dataSourceId"])
 
+            created_by_user_id = _get_user_id_by_email(connection, created_by)
+            if not created_by_user_id:
+                return _response(400, {"error": "Admin user not found in database"})
+
+            try:
+                db_metadata = {
+                    "bedrock_data_source_id": created_data_source["dataSourceId"],
+                    "bedrock_data_source_name": created_data_source["name"],
+                    "seed_url": name,
+                    "source": "bedrock_web_crawler",
+                    "action": "created_new_data_source",
+                }
+
+                data_source_row_id = _upsert_data_source_row(
+                    connection,
+                    bedrock_data_source_id=created_data_source["dataSourceId"],
+                    name=name,
+                    data_source_type="website",
+                    include_patterns=include_patterns,
+                    exclude_patterns=exclude_patterns,
+                    created_by_user_id=created_by_user_id,
+                    metadata=db_metadata,
+                )
+
+                ingestion_run_row_id = _insert_ingestion_run_row(
+                    connection,
+                    data_source_row_id=data_source_row_id,
+                    bedrock_ingestion_job_id=ingestion_job["ingestionJobId"],
+                )
+
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
+
             return _response(
                 200,
                 {
@@ -466,6 +655,8 @@ def add_website(event, body, connection, kb_id):
                     "data_source_id": created_data_source["dataSourceId"],
                     "data_source_name": created_data_source["name"],
                     "ingestion_job_id": ingestion_job["ingestionJobId"],
+                    "db_data_source_id": data_source_row_id,
+                    "db_ingestion_run_id": ingestion_run_row_id,
                 },
             )
 
