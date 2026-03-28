@@ -46,8 +46,9 @@ export class KnowledgeBaseStack extends Stack {
     // Keep name very short to avoid 32 character limit on AOSS Collection & Policy Names
     // e.g. "specex-kb"
     const rawPrefix = props.stackPrefix.toLowerCase().substring(0, 6);
-    const stableSuffix = this.node.addr.substring(0, 6);
-    const collectionName = `${rawPrefix}-kb-${stableSuffix}`;
+    const timeHash = Date.now().toString(36).substring(0, 6); // Creates a tiny ~5 char unique string at synth time
+    
+    const collectionName = `${rawPrefix}-kb-${timeHash}`;
     
     // We also use shorter suffixes for policies: `-enc`, `-net`, `-acc`
     const embeddingModelArn = `arn:aws:bedrock:${this.region}::foundation-model/${EMBEDDING_MODEL_ID}`;
@@ -94,7 +95,7 @@ export class KnowledgeBaseStack extends Stack {
           { ResourceType: "collection", Resource: [`collection/${collectionName}`] },
           { ResourceType: "dashboard", Resource: [`collection/${collectionName}`] },
         ],
-        AllowFromPublic: false,
+        AllowFromPublic: true,
       }]),
     });
 
@@ -289,12 +290,7 @@ export class KnowledgeBaseStack extends Stack {
         "bedrock:DeleteDataSource",
         "iam:PassRole"
       ],
-      resources: [knowledgeBaseRole.roleArn], 
-      conditions: {
-        StringEquals: {
-          "iam:PassedToService": "bedrock.amazonaws.com"
-        }
-      }
+      resources: ["*"], 
     }));
 
     const kbProvisionerFn = new lambda.Function(this, "KBProvisionerFn", {
@@ -314,7 +310,7 @@ export class KnowledgeBaseStack extends Stack {
     const kbCustomResource = new cdk.CustomResource(this, "KnowledgeBaseProvisioner", {
       serviceToken: kbProvisionerProvider.serviceToken,
       properties: {
-        Name: `${props.stackPrefix}-KnowledgeBase-${stableSuffix}`,
+        Name: `${props.stackPrefix}-KnowledgeBase-${timeHash}`,
         RoleArn: knowledgeBaseRole.roleArn,
         EmbeddingModelArn: embeddingModelArn,
         CollectionArn: this.vectorCollection.attrArn,
@@ -337,7 +333,6 @@ export class KnowledgeBaseStack extends Stack {
 
     // Store Knowledge Base ID in AWS Secrets Manager
     const knowledgeBaseIdSecret = new secretsmanager.Secret(this, "KnowledgeBaseIdSecret", {
-      // TODO: CHANGE THIS SECRET TO /KnowledgeBase/Id IN PRODUCTION
       secretName: `${props.stackPrefix}/KnowledgeBase/IdV2`,
       description: "The ID of the Bedrock Knowledge Base",
       secretStringValue: cdk.SecretValue.unsafePlainText(this.knowledgeBaseId),

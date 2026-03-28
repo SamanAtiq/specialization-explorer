@@ -161,13 +161,6 @@ def handler(event, context=None):
         
     except Exception as e:
         logger.error(f"Error: {e}", exc_info=True)
-        # Rollback transaction and reset autocommit if connection is set
-        if conn is not None:
-            try:
-                conn.rollback()
-                conn.autocommit = False
-            except Exception as rollback_err:
-                logger.error(f"Failed to rollback/reset connection: {rollback_err}")
         return {
             'statusCode': 500,
             'headers': {
