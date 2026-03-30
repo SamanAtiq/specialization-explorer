@@ -1,3 +1,4 @@
+import os
 import json
 import logging
 import boto3
@@ -5,8 +6,14 @@ import boto3
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-bedrock_agent = boto3.client("bedrock-agent")
+# Environment variables
+REGION = os.environ["REGION"]
 
+# AWS Clients
+bedrock_agent = boto3.client("bedrock-agent", region_name=REGION)
+scheduler_client = boto3.client("scheduler", region_name=REGION)
+
+RUNNING_STATUSES = {"STARTING", "IN_PROGRESS", "STOPPING"}
 
 def _response(status_code: int, body: dict):
     return {
@@ -20,61 +27,18 @@ def _response(status_code: int, body: dict):
         "body": json.dumps(body),
     }
 
-
 def _normalize_status(bedrock_status: str | None) -> str | None:
-    if not bedrock_status:
-        return None
-
     if bedrock_status == "COMPLETE":
         return "completed"
-
     if bedrock_status == "FAILED":
         return "failed"
-
-    if bedrock_status in {"STARTING", "IN_PROGRESS", "STOPPING"}:
+    if bedrock_status in RUNNING_STATUSES:
         return "running"
-
     return None
 
-
-def _extract_event_details(event: dict) -> dict:
-    detail = event.get("detail", {}) or {}
-
-    return {
-        "knowledge_base_id": detail.get("knowledgeBaseId"),
-        "data_source_id": detail.get("dataSourceId"),
-        "ingestion_job_id": detail.get("ingestionJobId"),
-        "status": detail.get("status"),
-        "failure_reasons": detail.get("failureReasons", []) or [],
-        "raw_detail": detail,
-    }
-
-
-def _fetch_ingestion_job_if_possible(event_details: dict) -> dict | None:
-    kb_id = event_details.get("knowledge_base_id")
-    ds_id = event_details.get("data_source_id")
-    job_id = event_details.get("ingestion_job_id")
-
-    if not kb_id or not ds_id or not job_id:
-        return None
-
-    try:
-        resp = bedrock_agent.get_ingestion_job(
-            knowledgeBaseId=kb_id,
-            dataSourceId=ds_id,
-            ingestionJobId=job_id,
-        )
-        return resp.get("ingestionJob")
-    except Exception as e:
-        logger.warning("Could not fetch ingestion job details from Bedrock: %s", e)
-        return None
-
-
-def _update_ingestion_run(connection, *, ingestion_job_id: str, status: str, error_message: str | None):
-    terminal = status in {"completed", "failed"}
-
+def _update_ingestion_run(connection, *, ingestion_run_id: str, status: str, error_message: str | None):
     with connection.cursor() as cursor:
-        if terminal:
+        if status in {"completed", "failed"}:
             cursor.execute(
                 """
                 UPDATE ingestion_runs
@@ -82,9 +46,9 @@ def _update_ingestion_run(connection, *, ingestion_job_id: str, status: str, err
                     status = %s::ingestion_status,
                     error_message = %s,
                     completed_at = NOW()
-                WHERE metadata->>'bedrock_ingestion_job_id' = %s
+                WHERE id = %s::uuid
                 """,
-                (status, error_message, ingestion_job_id),
+                (status, error_message, ingestion_run_id),
             )
         else:
             cursor.execute(
@@ -93,41 +57,78 @@ def _update_ingestion_run(connection, *, ingestion_job_id: str, status: str, err
                 SET
                     status = %s::ingestion_status,
                     error_message = %s
-                WHERE metadata->>'bedrock_ingestion_job_id' = %s
+                WHERE id = %s::uuid
                 """,
-                (status, error_message, ingestion_job_id),
+                (status, error_message, ingestion_run_id),
             )
 
         return cursor.rowcount
 
+def _delete_schedule(schedule_name: str):
+    scheduler_client.delete_schedule(
+        Name=schedule_name,
+        GroupName="default",
+    )
 
 def update_status(event, connection):
-    logger.info("Received Bedrock EventBridge event: %s", json.dumps(event))
+    logger.info("Scheduler polling event: %s", json.dumps(event))
 
-    event_details = _extract_event_details(event)
-    ingestion_job_id = event_details.get("ingestion_job_id")
+    kb_id = event.get("knowledge_base_id")
+    bedrock_data_source_id = event.get("bedrock_data_source_id")
+    bedrock_ingestion_job_id = event.get("bedrock_ingestion_job_id")
+    db_ingestion_run_id = event.get("db_ingestion_run_id")
+    schedule_name = event.get("schedule_name")
 
-    if not ingestion_job_id:
-        return _response(400, {"error": "Missing ingestion job ID in Bedrock event"})
+    if not kb_id or not bedrock_data_source_id or not bedrock_ingestion_job_id or not db_ingestion_run_id or not schedule_name:
+        return _response(
+            400,
+            {
+                "error": "Missing required scheduler payload fields",
+                "received": {
+                    "knowledge_base_id": kb_id,
+                    "bedrock_data_source_id": bedrock_data_source_id,
+                    "bedrock_ingestion_job_id": bedrock_ingestion_job_id,
+                    "db_ingestion_run_id": db_ingestion_run_id,
+                    "schedule_name": schedule_name,
+                },
+            },
+        )
 
-    # Prefer the fresh Bedrock API read if enough identifiers are present
-    ingestion_job = _fetch_ingestion_job_if_possible(event_details)
+    resp = bedrock_agent.get_ingestion_job(
+        knowledgeBaseId=kb_id,
+        dataSourceId=bedrock_data_source_id,
+        ingestionJobId=bedrock_ingestion_job_id,
+    )
+    ingestion_job = resp.get("ingestionJob", {})
+    bedrock_status = ingestion_job.get("status")
+    failure_reasons = ingestion_job.get("failureReasons", []) or []
 
-    if ingestion_job:
-        bedrock_status = ingestion_job.get("status")
-        failure_reasons = ingestion_job.get("failureReasons", []) or []
-    else:
-        bedrock_status = event_details.get("status")
-        failure_reasons = event_details.get("failure_reasons", [])
+    logger.info(
+        "Polled ingestion job: kb_id=%s data_source_id=%s ingestion_job_id=%s status=%s",
+        kb_id,
+        bedrock_data_source_id,
+        bedrock_ingestion_job_id,
+        bedrock_status,
+    )
 
     normalized_status = _normalize_status(bedrock_status)
     if not normalized_status:
         return _response(
             200,
             {
-                "message": "Ignored non-terminal or unsupported Bedrock ingestion status event.",
-                "ingestion_job_id": ingestion_job_id,
+                "message": "Unsupported or unknown Bedrock ingestion status",
                 "bedrock_status": bedrock_status,
+                "ingestion_job_id": bedrock_ingestion_job_id,
+            },
+        )
+
+    if normalized_status == "running":
+        return _response(
+            200,
+            {
+                "message": "Ingestion job still running",
+                "bedrock_status": bedrock_status,
+                "ingestion_job_id": bedrock_ingestion_job_id,
             },
         )
 
@@ -136,7 +137,7 @@ def update_status(event, connection):
     try:
         rows_updated = _update_ingestion_run(
             connection,
-            ingestion_job_id=ingestion_job_id,
+            ingestion_run_id=db_ingestion_run_id,
             status=normalized_status,
             error_message=error_message,
         )
@@ -145,20 +146,18 @@ def update_status(event, connection):
         connection.rollback()
         raise
 
-    if rows_updated == 0:
-        return _response(
-            404,
-            {
-                "error": "No matching ingestion_runs row found for Bedrock ingestion job ID",
-                "ingestion_job_id": ingestion_job_id,
-            },
-        )
+    try:
+        _delete_schedule(schedule_name)
+    except Exception as e:
+        logger.error("Failed to delete schedule %s: %s", schedule_name, e, exc_info=True)
+        # DB is already correct; leave schedule cleanup as retriable/manual follow-up
 
     return _response(
         200,
         {
-            "message": "Ingestion run status updated successfully.",
-            "ingestion_job_id": ingestion_job_id,
+            "message": "Updated ingestion run and attempted schedule cleanup",
+            "db_ingestion_run_id": db_ingestion_run_id,
+            "bedrock_ingestion_job_id": bedrock_ingestion_job_id,
             "status": normalized_status,
             "rows_updated": rows_updated,
         },

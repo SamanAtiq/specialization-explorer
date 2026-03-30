@@ -1,3 +1,4 @@
+import os
 import json
 import logging
 import boto3
@@ -6,7 +7,10 @@ from uuid import uuid4
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-bedrock_agent = boto3.client("bedrock-agent")
+# Environment variables
+REGION = os.environ["REGION"]
+SCHEDULER_ROLE_ARN = os.environ["SCHEDULER_ROLE_ARN"]
+SCHEDULER_TARGET_ARN = os.environ["SCHEDULER_TARGET_ARN"]
 
 MAX_TOTAL_DATA_SOURCES = 5
 RESERVED_NON_WEB_DATA_SOURCES = 1
@@ -19,6 +23,9 @@ SYNCING_STATUSES = {"STARTING", "IN_PROGRESS", "STOPPING"}
 FAILED_STATUSES = {"FAILED"}
 SUCCESS_STATUSES = {"COMPLETE"}
 
+# AWS Clients
+bedrock_agent = boto3.client("bedrock-agent", region_name=REGION)
+scheduler_client = boto3.client("scheduler", region_name=REGION)
 
 def _response(status_code: int, body: dict):
     return {
@@ -472,6 +479,54 @@ def _insert_ingestion_run_row(
         row = cursor.fetchone()
         return str(row[0])
 
+def _create_ingestion_polling_schedule(
+    *,
+    knowledge_base_id: str,
+    bedrock_data_source_id: str,
+    bedrock_ingestion_job_id: str,
+    db_ingestion_run_id: str,
+) -> str:
+    schedule_name = f"kb-ingestion-{db_ingestion_run_id}"
+
+    payload = {
+        "task": "poll_ingestion_run",
+        "knowledge_base_id": knowledge_base_id,
+        "bedrock_data_source_id": bedrock_data_source_id,
+        "bedrock_ingestion_job_id": bedrock_ingestion_job_id,
+        "db_ingestion_run_id": db_ingestion_run_id,
+        "schedule_name": schedule_name,
+    }
+
+    scheduler_client.create_schedule(
+        Name=schedule_name,
+        GroupName="default",
+        ScheduleExpression="rate(30 minutes)",
+        FlexibleTimeWindow={"Mode": "OFF"},
+        State="ENABLED",
+        Target={
+            "Arn": SCHEDULER_TARGET_ARN,
+            "RoleArn": SCHEDULER_ROLE_ARN,
+            "Input": json.dumps(payload),
+        },
+        Description=f"Poll Bedrock ingestion job {bedrock_ingestion_job_id} for run {db_ingestion_run_id}",
+    )
+
+    return schedule_name
+
+def _update_ingestion_run_schedule_name(connection, *, ingestion_run_row_id: str, schedule_name: str):
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            UPDATE ingestion_runs
+            SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+            WHERE id = %s::uuid
+            """,
+            (
+                json.dumps({"scheduler_name": schedule_name}),
+                ingestion_run_row_id,
+            ),
+        )
+
 def add_website(event, body, connection, kb_id):
     name = body.get("name")
     include_patterns = body.get("include_patterns", [])
@@ -570,6 +625,19 @@ def add_website(event, body, connection, kb_id):
                 )
 
                 connection.commit()
+
+                schedule_name = _create_ingestion_polling_schedule(
+                    knowledge_base_id=kb_id,
+                    bedrock_data_source_id=updated_data_source["dataSourceId"],
+                    bedrock_ingestion_job_id=ingestion_job["ingestionJobId"],
+                    db_ingestion_run_id=ingestion_run_row_id,
+                )
+
+                _update_ingestion_run_schedule_name(
+                    connection=connection,
+                    ingestion_run_row_id=ingestion_run_row_id,
+                    schedule_name=schedule_name
+                )
             except Exception:
                 connection.rollback()
                 raise
@@ -586,6 +654,7 @@ def add_website(event, body, connection, kb_id):
                     "ingestion_job_id": ingestion_job["ingestionJobId"],
                     "db_data_source_id": data_source_row_id,
                     "db_ingestion_run_id": ingestion_run_row_id,
+                    "schedule_name": schedule_name,
                 },
             )
 
@@ -641,6 +710,19 @@ def add_website(event, body, connection, kb_id):
                 )
 
                 connection.commit()
+
+                schedule_name = _create_ingestion_polling_schedule(
+                    knowledge_base_id=kb_id,
+                    bedrock_data_source_id=created_data_source["dataSourceId"],
+                    bedrock_ingestion_job_id=ingestion_job["ingestionJobId"],
+                    db_ingestion_run_id=ingestion_run_row_id,
+                )
+
+                _update_ingestion_run_schedule_name(
+                    connection=connection,
+                    ingestion_run_row_id=ingestion_run_row_id,
+                    schedule_name=schedule_name
+                )
             except Exception:
                 connection.rollback()
                 raise
@@ -657,6 +739,7 @@ def add_website(event, body, connection, kb_id):
                     "ingestion_job_id": ingestion_job["ingestionJobId"],
                     "db_data_source_id": data_source_row_id,
                     "db_ingestion_run_id": ingestion_run_row_id,
+                    "schedule_name": schedule_name,
                 },
             )
 

@@ -21,8 +21,6 @@ import * as logs from "aws-cdk-lib/aws-logs";
 import * as ecr from "aws-cdk-lib/aws-ecr";
 import * as s3n from "aws-cdk-lib/aws-s3-notifications";
 import * as bedrock from "aws-cdk-lib/aws-bedrock";
-import * as events from "aws-cdk-lib/aws-events";
-import * as targets from "aws-cdk-lib/aws-events-targets";
 
 interface ApiGatewayStackProps extends cdk.StackProps {
   ecrRepositories: { [key: string]: ecr.Repository };
@@ -1039,6 +1037,8 @@ export class ApiGatewayStack extends cdk.Stack {
         SM_DB_CREDENTIALS: db.secretPathUser.secretName,
         RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
         REGION: this.region,
+        SCHEDULER_ROLE_ARN: "", // set below after role creation
+        SCHEDULER_TARGET_ARN: "", // set below after function creation
       },
     });
 
@@ -1087,6 +1087,7 @@ export class ApiGatewayStack extends cdk.Stack {
           "bedrock:GetIngestionJob",
           "bedrock:StartIngestionJob",
         ],
+        // TODO: need to tighten this to our knowledge base ARN
         resources: [
           `arn:aws:bedrock:${this.region}:${this.account}:knowledge-base/*`,
           `arn:aws:bedrock:${this.region}:${this.account}:*`,
@@ -1094,14 +1095,36 @@ export class ApiGatewayStack extends cdk.Stack {
       })
     );
 
-    // allows EventBridge to update status of ingestion jobs
-    const bedrockStatusRule = new events.Rule(this, `${id}-bedrockStatusRule`, {
-      eventPattern: {
-        source: ["aws.bedrock"],
-      },
+    // allows create/delete per-run schedules
+    lambdaKnowledgeBase.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "scheduler:CreateSchedule",
+          "scheduler:DeleteSchedule",
+          "scheduler:GetSchedule",
+        ],
+        resources: [
+          `arn:aws:scheduler:${this.region}:${this.account}:schedule/default/*`,
+        ],
+      })
+    );
+
+    // role assumed by EventBridge Scheduler to invoke this Lambda function
+    const schedulerInvokeRole = new iam.Role(this, `${id}-schedulerInvokeRole`, {
+      assumedBy: new iam.ServicePrincipal("scheduler.amazonaws.com"),
     });
 
-    bedrockStatusRule.addTarget(new targets.LambdaFunction(lambdaKnowledgeBase));
+    schedulerInvokeRole.addToPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["lambda:InvokeFunction"],
+        resources: [lambdaKnowledgeBase.functionArn],
+      })
+    );
+
+    lambdaKnowledgeBase.addEnvironment("SCHEDULER_ROLE_ARN", schedulerInvokeRole.roleArn);
+    lambdaKnowledgeBase.addEnvironment("SCHEDULER_TARGET_ARN", lambdaKnowledgeBase.functionArn);
 
     const lambdaUserFunction = new lambda.Function(this, `${id}-userFunction`, {
       runtime: lambda.Runtime.NODEJS_22_X,

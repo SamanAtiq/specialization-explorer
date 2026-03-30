@@ -102,8 +102,8 @@ def handler(event, context=None):
     logger.info("Event: %s", json.dumps(event))
 
     try:
-        # EventBridge path
-        if event.get("source") == "aws.bedrock":
+        # Scheduler polling path
+        if event.get("task") == "poll_ingestion_run":
             try:
                 connection = _connect_to_db()
             except Exception as e:
