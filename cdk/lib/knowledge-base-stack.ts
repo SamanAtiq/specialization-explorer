@@ -46,10 +46,12 @@ export class KnowledgeBaseStack extends Stack {
     // Keep name very short to avoid 32 character limit on AOSS Collection & Policy Names
     // e.g. "specex-kb"
     const rawPrefix = props.stackPrefix.toLowerCase().substring(0, 6);
-    const timeHash = Date.now().toString(36).substring(0, 6); // Creates a tiny ~5 char unique string at synth time
-    
-    const collectionName = `${rawPrefix}-kb-${timeHash}`;
-    
+    const accountId = cdk.Stack.of(this).account;
+    const region = cdk.Stack.of(this).region;
+
+    // Use a stable, deterministic collection name
+    const collectionName = `${rawPrefix}-kb`;
+
     // We also use shorter suffixes for policies: `-enc`, `-net`, `-acc`
     const embeddingModelArn = `arn:aws:bedrock:${this.region}::foundation-model/${EMBEDDING_MODEL_ID}`;
 
@@ -137,8 +139,9 @@ export class KnowledgeBaseStack extends Stack {
       resources: [embeddingModelArn],
     }));
 
+    // Use account and region for uniqueness (see https://aws.amazon.com/blogs/aws/introducing-account-regional-namespaces-for-amazon-s3-general-purpose-buckets/)
     this.knowledgeBaseBucket = new s3.Bucket(this, "KnowledgeBaseBucket", {
-      bucketName: `${props.stackPrefix.toLowerCase()}-kb-documents-bucket`,
+      bucketName: `${accountId}-${region}-${rawPrefix}-kb-documents-bucket`,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       removalPolicy: RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
@@ -310,7 +313,7 @@ export class KnowledgeBaseStack extends Stack {
     const kbCustomResource = new cdk.CustomResource(this, "KnowledgeBaseProvisioner", {
       serviceToken: kbProvisionerProvider.serviceToken,
       properties: {
-        Name: `${props.stackPrefix}-KnowledgeBase-${timeHash}`,
+        Name: `${props.stackPrefix}-KnowledgeBase`,
         RoleArn: knowledgeBaseRole.roleArn,
         EmbeddingModelArn: embeddingModelArn,
         CollectionArn: this.vectorCollection.attrArn,
