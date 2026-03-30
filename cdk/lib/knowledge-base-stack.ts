@@ -141,7 +141,6 @@ export class KnowledgeBaseStack extends Stack {
 
     // Use account and region for uniqueness (see https://aws.amazon.com/blogs/aws/introducing-account-regional-namespaces-for-amazon-s3-general-purpose-buckets/)
     this.knowledgeBaseBucket = new s3.Bucket(this, "KnowledgeBaseBucket", {
-      bucketName: `${accountId}-${region}-${rawPrefix}-kb-documents-bucket`,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       removalPolicy: RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
@@ -153,6 +152,11 @@ export class KnowledgeBaseStack extends Stack {
         exposedHeaders: ["ETag"],
       }],
     });
+
+    // Access the underlying L1 construct for enabling account regional space
+    const cfnBucket = this.knowledgeBaseBucket.node.defaultChild as s3.CfnBucket;
+    cfnBucket.bucketNamespace = 'account-regional';
+    cfnBucket.bucketNamePrefix = `${rawPrefix}-kb-documents`;
 
     // Grant Bedrock role permissions to read from S3
     this.knowledgeBaseBucket.grantRead(knowledgeBaseRole);
