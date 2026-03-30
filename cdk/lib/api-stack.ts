@@ -1037,8 +1037,8 @@ export class ApiGatewayStack extends cdk.Stack {
         SM_DB_CREDENTIALS: db.secretPathUser.secretName,
         RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
         REGION: this.region,
-        SCHEDULER_ROLE_ARN: "", // set below after role creation
-        SCHEDULER_TARGET_ARN: "", // set below after function creation
+        SCHEDULER_ROLE_ARN: `arn:aws:iam::${this.account}:role/${id}-schedulerInvokeRole`,
+        SCHEDULER_TARGET_ARN: `arn:aws:lambda:${this.region}:${this.account}:function:${id}-lambdaKnowledgeBase`,
       },
     });
 
@@ -1119,12 +1119,11 @@ export class ApiGatewayStack extends cdk.Stack {
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: ["lambda:InvokeFunction"],
-        resources: [lambdaKnowledgeBase.functionArn],
+        resources: [
+          `arn:aws:lambda:${this.region}:${this.account}:function:${id}-lambdaKnowledgeBase`,
+        ],
       })
     );
-
-    lambdaKnowledgeBase.addEnvironment("SCHEDULER_ROLE_ARN", schedulerInvokeRole.roleArn);
-    lambdaKnowledgeBase.addEnvironment("SCHEDULER_TARGET_ARN", lambdaKnowledgeBase.functionArn);
 
     const lambdaUserFunction = new lambda.Function(this, `${id}-userFunction`, {
       runtime: lambda.Runtime.NODEJS_22_X,
