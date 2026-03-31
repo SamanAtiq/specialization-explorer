@@ -1110,8 +1110,9 @@ export class ApiGatewayStack extends cdk.Stack {
       })
     );
 
-    // role assumed by EventBridge Scheduler to invoke this Lambda function
+    // EventBridge Scheduler role to invoke this Lambda function
     const schedulerInvokeRole = new iam.Role(this, `${id}-schedulerInvokeRole`, {
+      roleName: `${id}-schedulerInvokeRole`,
       assumedBy: new iam.ServicePrincipal("scheduler.amazonaws.com"),
     });
 
@@ -1122,6 +1123,22 @@ export class ApiGatewayStack extends cdk.Stack {
         resources: [
           `arn:aws:lambda:${this.region}:${this.account}:function:${id}-lambdaKnowledgeBase`,
         ],
+      })
+    );
+    
+    // Scheduler also requires the caller to be allowed to pass the target role
+    lambdaKnowledgeBase.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["iam:PassRole"],
+        resources: [
+          `arn:aws:iam::${this.account}:role/${id}-schedulerInvokeRole`,
+        ],
+        conditions: {
+          StringEquals: {
+            "iam:PassedToService": "scheduler.amazonaws.com",
+          },
+        },
       })
     );
 
