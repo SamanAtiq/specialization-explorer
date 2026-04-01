@@ -706,7 +706,7 @@ export default function AIChatPage() {
         </div>
       ) : (
         // Scrollable messages area (Full width for edge scrollbar)
-        <div className="flex-1 overflow-y-auto overscroll-contain scrollbar-invisible w-full">
+        <div className="flex-1 overflow-y-auto overscroll-contain chat-scrollbar w-full">
           <div className="w-full max-w-2xl 2xl:max-w-3xl mx-auto flex flex-col gap-4 pt-4 pb-2 px-4">
             {isLoadingHistory ? (
               <div className="flex items-center justify-center py-8">
