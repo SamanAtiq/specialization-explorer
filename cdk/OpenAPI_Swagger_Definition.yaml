@@ -337,7 +337,57 @@ paths:
         httpMethod: POST
         type: aws_proxy
 
-
+  /admin/generate-presigned-url:
+    <<: *commonOptions
+    get:
+      tags:
+        - Admin
+      summary: Generate a pre-signed URL for uploading knowledge base files to S3
+      operationId: generate_presigned_url
+      security:
+        - adminAuthorizer: []
+      parameters:
+        - name: file_name
+          in: query
+          required: true
+          description: Name of the file to upload
+          schema:
+            type: string
+            maxLength: 255
+        - name: content_type
+          in: query
+          required: false
+          description: MIME type of the file
+          schema:
+            type: string
+            default: "application/octet-stream"
+      responses:
+        "200":
+          description: Pre-signed URL generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  presignedUrl:
+                    type: string
+                    description: The pre-signed URL for uploading
+                  key:
+                    type: string
+                    description: The S3 object key
+                  bucket:
+                    type: string
+                    description: The S3 bucket name
+        "400":
+          description: Bad Request - Missing required parameters
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaKnowledgeBase.Arn}/invocations
+        passthroughBehavior: "when_no_match"
+        httpMethod: POST
+        type: aws_proxy
 
   /admin/system-settings:
     <<: *commonOptions

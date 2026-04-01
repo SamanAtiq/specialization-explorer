@@ -1051,7 +1051,7 @@ export class ApiGatewayStack extends cdk.Stack {
     lambdaKnowledgeBase.addPermission("AllowApiGatewayInvoke", {
       principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
       action: "lambda:InvokeFunction",
-      sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/admin/data_sources/*`,
+      sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/admin/*`,
     });
 
     lambdaKnowledgeBase.addToRolePolicy(
@@ -1070,7 +1070,7 @@ export class ApiGatewayStack extends cdk.Stack {
           "s3:GetObject",
           "s3:PutObject",
           "s3:DeleteObject",
-        ],
+        ], // TODO: tighten S3 resources
         resources: [
           "arn:aws:s3:::*",
           "arn:aws:s3:::*/*",

@@ -5,6 +5,7 @@ import logging
 import psycopg2
 
 from helpers.add_website import add_website
+from helpers.generate_presigned_url import generate_presigned_url
 from helpers.update_status import update_status
 
 # Set up logging
@@ -76,7 +77,6 @@ def _response(status_code: int, body: dict):
         "body": json.dumps(body),
     }
 
-
 def _parse_body(event):
     body = {}
     raw_body = event.get("body")
@@ -97,7 +97,6 @@ def _parse_body(event):
 
     return body
 
-
 def handler(event, context=None):
     logger.info("Event: %s", json.dumps(event))
 
@@ -116,6 +115,13 @@ def handler(event, context=None):
         method = event.get("httpMethod", "")
         resource = event.get("resource", "")
         path = event.get("path", "")
+
+        # Route: GET /admin/generate-presigned-url
+        if method == "GET" and (
+            resource == "/admin/generate-presigned-url"
+            or path.endswith("/admin/generate-presigned-url")
+        ):
+            return generate_presigned_url(event=event)
 
         try:
             body = _parse_body(event)
