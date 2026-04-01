@@ -71,6 +71,7 @@ const apiStack = new ApiGatewayStack(
   {
     env,
     ecrRepositories: cicdStack.ecrRepositories,
+    knowledgeBaseBucket: kbStack.knowledgeBaseBucket,
   }
 );
 apiStack.addDependency(kbStack);

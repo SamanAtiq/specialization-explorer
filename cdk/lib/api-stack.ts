@@ -24,6 +24,7 @@ import * as bedrock from "aws-cdk-lib/aws-bedrock";
 
 interface ApiGatewayStackProps extends cdk.StackProps {
   ecrRepositories: { [key: string]: ecr.Repository };
+  knowledgeBaseBucket: s3.IBucket;
 }
 
 export class ApiGatewayStack extends cdk.Stack {
@@ -1040,6 +1041,7 @@ export class ApiGatewayStack extends cdk.Stack {
         REGION: this.region,
         SCHEDULER_ROLE_ARN: `arn:aws:iam::${this.account}:role/${id}-schedulerInvokeRole`,
         SCHEDULER_TARGET_ARN: `arn:aws:lambda:${this.region}:${this.account}:function:${id}-lambdaKnowledgeBase`,
+        KNOWLEDGE_BASE_BUCKET_NAME: props.knowledgeBaseBucket.bucketName,
       },
     });
 
