@@ -597,7 +597,7 @@ export class ApiGatewayStack extends cdk.Stack {
         effect: iam.Effect.ALLOW,
         actions: ["secretsmanager:GetSecretValue"],
         resources: [
-          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:SpecEx/KnowledgeBase/Id-*`,
+          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*KnowledgeBase/Id-*`,
         ],
       })
     );
@@ -876,54 +876,7 @@ export class ApiGatewayStack extends cdk.Stack {
 
 
 
-    // ========================================================================
-    // ECR Image Waiter Custom Resource
-    // ========================================================================
-    // This custom resource ensures Docker images exist in ECR before
-    // the Docker-based Lambda functions are created, preventing race conditions
-
-    const ecrImageWaiterRole = new iam.Role(this, `${id}-EcrImageWaiterRole`, {
-      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
-    });
-
-    ecrImageWaiterRole.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: [
-          "ecr:DescribeImages",
-          "ecr:DescribeRepositories",
-          "ecr:BatchGetImage",
-        ],
-        resources: [`arn:aws:ecr:${this.region}:${this.account}:repository/*`],
-      })
-    );
-
-    ecrImageWaiterRole.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents",
-        ],
-        resources: ["arn:aws:logs:*:*:*"],
-      })
-    );
-
-    const ecrImageWaiterFunction = new lambda.Function(
-      this,
-      `${id}-EcrImageWaiter`,
-      {
-        runtime: lambda.Runtime.NODEJS_22_X,
-        code: lambda.Code.fromAsset("lambda/ecrImageWaiter"),
-        handler: "index.handler",
-        timeout: cdk.Duration.minutes(15),
-        role: ecrImageWaiterRole,
-        functionName: `${id}-EcrImageWaiter`,
-        description: "Custom resource to wait for ECR images to be available",
-        logRetention: logs.RetentionDays.ONE_WEEK,
-      }
-    );
+    // --- ECR Image Waiter code removed as it's handled in KnowledgeBaseStack ---
 
     const lambdaTextGen = new lambda.Function(
       this,
@@ -1048,7 +1001,16 @@ export class ApiGatewayStack extends cdk.Stack {
       })
     );
 
-    // allows create/delete per-run schedules
+    lambdaKnowledgeBase.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["secretsmanager:GetSecretValue"],
+        resources: [
+          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*KnowledgeBase/Id/playground-*`, //TODO: remove this as we'll merge to a single knowledge base
+          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*KnowledgeBase/Id-*`
+        ],
+      })
+    );
     lambdaKnowledgeBase.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
