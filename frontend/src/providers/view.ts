@@ -16,11 +16,13 @@ export type ViewContextType = {
   // Chat session management
   chatSessions: ChatSession[];
   activeChatSessionId: string | null;
-  setActiveChatSessionId: (id: string) => void;
+  setActiveChatSessionId: (id: string | null) => void;
   isLoadingChatSessions: boolean;
   createNewChatSession: () => Promise<ChatSession | null>;
   refreshChatSessions: () => Promise<void>;
   updateChatSessionName: (sessionId: string, name: string) => void;
+  removeChatSession: (sessionId: string) => void;
+  renameChatSession: (sessionId: string, name: string) => Promise<ChatSession | null>;
 };
 
 export const ViewContext = createContext<

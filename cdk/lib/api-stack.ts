@@ -959,7 +959,7 @@ export class ApiGatewayStack extends cdk.Stack {
         layers: [psycopgLayer],
         vpc: vpcStack.vpc,
         tracing: lambda.Tracing.ACTIVE,
-        memorySize: 1024,
+        memorySize: 512,
         environment: {
           SM_DB_CREDENTIALS: db.secretPathUser.secretName,
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,

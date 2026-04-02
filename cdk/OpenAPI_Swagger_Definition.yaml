@@ -1309,6 +1309,59 @@ paths:
 
   /chat_sessions/{chat_session_id}:
     <<: *commonOptions
+    put:
+      tags:
+        - ChatSessions
+      summary: Rename a specific chat session (only the owning user may update)
+      operationId: update_chat_session
+      security:
+        - userAuthorizer: []
+      parameters:
+        - name: chat_session_id
+          in: path
+          required: true
+          description: Chat session UUID
+          schema:
+            type: string
+            format: uuid
+        - name: user_id
+          in: query
+          required: true
+          description: User UUID used to verify ownership when renaming
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+      responses:
+        "200":
+          description: Chat session renamed successfully
+        "400":
+          description: Invalid request
+        "403":
+          description: Forbidden - User does not own this chat session
+        "404":
+          description: Chat session not found
+        "401":
+          description: Unauthorized
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${chatSessionFunction.Arn}/invocations
+        passthroughBehavior: "when_no_match"
+        httpMethod: POST
+        type: aws_proxy
     delete:
       tags:
         - ChatSessions

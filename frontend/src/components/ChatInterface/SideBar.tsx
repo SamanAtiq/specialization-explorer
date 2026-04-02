@@ -4,7 +4,7 @@ import { useNavigate } from "react-router";
 import { Separator } from "@/components/ui/separator";
 import { useView } from "@/providers/view";
 import { Plus, MessageSquare } from "lucide-react";
-import DeleteChatButton from "./DeleteChatButton";
+import ChatSessionActionsMenu from "./ChatSessionActionsMenu";
 
 type SidebarContentProps = {
   setMobileOpen: (open: boolean) => void;
@@ -19,7 +19,7 @@ function SidebarContent({
     activeChatSessionId,
     setActiveChatSessionId,
     createNewChatSession,
-    refreshChatSessions,
+    removeChatSession,
   } = useView();
 
   const handleNewChat = async () => {
@@ -62,35 +62,39 @@ function SidebarContent({
         {/* Chat sessions list */}
         <div className="pl-2 border-l-2 border-muted space-y-1 max-h-[300px] overflow-y-auto">
           {chatSessions.map((session, index) => (
-            <Button
+            <div
               key={session.id}
-              variant="link"
-              onClick={() => handleSelectSession(session.id)}
-              className={`cursor-pointer w-full justify-start px-3 py-2 text-sm rounded-md transition-colors ${activeChatSessionId === session.id
-                ? "text-foreground font-medium"
-                : "text-muted-foreground hover:text-foreground hover:underline"
+              className={`flex items-center gap-1 rounded-md transition-colors ${activeChatSessionId === session.id
+                ? "bg-accent/60"
+                : "hover:bg-accent/30"
                 }`}
             >
-              <MessageSquare className="h-4 w-4 mr-2 flex-shrink-0" />
-              {/* temporary place holder for chat names */}
-              <span className="truncate">
-                {session.name || `Chat ${chatSessions.length - index}`}
-              </span>
-              {/* Delete icon */}
-              <div className="ml-auto">
-                <DeleteChatButton
+              <Button
+                variant="link"
+                onClick={() => handleSelectSession(session.id)}
+                className={`flex-1 justify-start px-3 py-2 text-sm rounded-md transition-colors ${activeChatSessionId === session.id
+                  ? "text-foreground font-medium"
+                  : "text-muted-foreground hover:text-foreground hover:underline"
+                  }`}
+              >
+                <MessageSquare className="h-4 w-4 mr-2 flex-shrink-0" />
+                <span className="truncate">
+                  {session.name || `Chat ${chatSessions.length - index}`}
+                </span>
+              </Button>
+
+              <div className="pr-1">
+                <ChatSessionActionsMenu
                   chatSessionId={session.id}
+                  chatSessionName={session.name || ""}
+                  displayName={session.name || `Chat ${chatSessions.length - index}`}
                   userId={session.user_id}
                   onDeleted={async () => {
-                    // Refresh sessions and if currently active, unset it
-                    await refreshChatSessions();
-                    if (activeChatSessionId === session.id) {
-                      setActiveChatSessionId("");
-                    }
+                    removeChatSession(session.id);
                   }}
                 />
               </div>
-            </Button>
+            </div>
           ))}
         </div>
       </div>

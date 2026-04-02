@@ -84,6 +84,20 @@ export default function HomePage() {
     return tokenResponse.json() as Promise<{ token: string }>;
   };
 
+const normalizeChatSession = (session: any): ChatSession => ({
+	id: session.id,
+	name:
+		typeof session.name === "string"
+			? session.name
+			: typeof session.title === "string"
+				? session.title
+				: "",
+	user_id: session.user_id,
+	context: session.context,
+	created_at: session.created_at,
+	metadata: session.metadata,
+});
+
   const fetchSystemMessage = async (
     messageType: string,
     fallback: string,
@@ -292,12 +306,12 @@ export default function HomePage() {
         throw new Error("Failed to fetch chat sessions");
       }
 
-      const sessions: ChatSession[] = await response.json();
-      setChatSessions(sessions || []);
+      const sessions: unknown = await response.json();
+      setChatSessions(Array.isArray(sessions) ? sessions.map(normalizeChatSession) : []);
     } catch (err) {
       console.error("Error fetching chat sessions:", err);
     } finally {
-      setIsLoadingChatSessions(false);
+    		setIsLoadingChatSessions(false);
     }
   };
 
@@ -350,7 +364,7 @@ export default function HomePage() {
         throw new Error("Failed to create chat session");
       }
 
-      const newSession: ChatSession = await createResponse.json();
+      const newSession = normalizeChatSession(await createResponse.json());
 
       // Add to the list and set as active
       setChatSessions((prev) => [newSession, ...prev]);
@@ -374,6 +388,53 @@ export default function HomePage() {
         session.id === sessionId ? { ...session, name } : session
       )
     );
+  };
+
+  const removeChatSession = (sessionId: string) => {
+    setChatSessions((prev) => prev.filter((session) => session.id !== sessionId));
+    setActiveChatSessionId((current) => (current === sessionId ? null : current));
+  };
+
+  const renameChatSession = async (
+    sessionId: string,
+    name: string
+  ): Promise<ChatSession | null> => {
+    if (!userId) return null;
+
+    const trimmedName = name.trim();
+    if (!trimmedName) return null;
+
+    try {
+      const { token } = await getPublicToken();
+
+      const url = new URL(`${import.meta.env.VITE_API_ENDPOINT}/chat_sessions/${sessionId}`);
+      url.searchParams.set("user_id", userId);
+
+      const response = await fetch(url.toString(), {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ title: trimmedName }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to rename chat session");
+      }
+
+      const updatedSession = normalizeChatSession(await response.json());
+      setChatSessions((prev) =>
+        prev.map((session) =>
+          session.id === sessionId ? { ...session, ...updatedSession } : session
+        )
+      );
+
+      return updatedSession;
+    } catch (err) {
+      console.error("Error renaming chat session:", err);
+      return null;
+    }
   };
 
   // Welcome CTA action
@@ -485,6 +546,8 @@ export default function HomePage() {
         createNewChatSession,
         refreshChatSessions,
         updateChatSessionName,
+        removeChatSession,
+        renameChatSession,
       }}
     >
       <SidebarProvider>

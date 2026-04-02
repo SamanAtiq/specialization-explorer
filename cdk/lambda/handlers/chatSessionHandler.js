@@ -134,6 +134,66 @@ exports.handler = async (event) => {
         break;
       }
 
+      case "PUT /chat_sessions/{chat_session_id}": {
+        const chatSessionId = event.pathParameters?.chat_session_id;
+
+        // Accept both names for compatibility while you transition
+        const userId =
+          event.queryStringParameters?.user_id ||
+          event.queryStringParameters?.user_session_id;
+
+        if (!chatSessionId) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "chat_session_id is required" });
+          break;
+        }
+
+        if (!userId) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "user_id is required" });
+          break;
+        }
+
+        const body = parseBody(event.body);
+        const title = typeof body.title === "string" ? body.title.trim() : "";
+
+        if (!title) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "title is required" });
+          break;
+        }
+
+        const chatSession = await sqlConnection`
+          SELECT id, user_id
+          FROM chat_sessions
+          WHERE id = ${chatSessionId}
+        `;
+
+        if (chatSession.length === 0) {
+          response.statusCode = 404;
+          response.body = JSON.stringify({ error: "Chat session not found" });
+          break;
+        }
+
+        if (chatSession[0].user_id !== userId) {
+          response.statusCode = 403;
+          response.body = JSON.stringify({ error: "You can only rename your own chat sessions" });
+          break;
+        }
+
+        const updated = await sqlConnection`
+          UPDATE chat_sessions
+          SET title = ${title}, last_active_at = NOW()
+          WHERE id = ${chatSessionId}
+          RETURNING id, user_id, title, created_at, last_active_at, metadata
+        `;
+
+        response.statusCode = 200;
+        data = updated[0];
+        response.body = JSON.stringify(data);
+        break;
+      }
+
       case "GET /chat_sessions/{chat_session_id}/chat_history": {
         const chatSessionId = event.pathParameters?.chat_session_id;
         const requestingUserId = event.queryStringParameters?.user_id;
