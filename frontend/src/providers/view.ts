@@ -23,6 +23,12 @@ export type ViewContextType = {
   updateChatSessionName: (sessionId: string, name: string) => void;
   removeChatSession: (sessionId: string) => void;
   renameChatSession: (sessionId: string, name: string) => Promise<ChatSession | null>;
+
+  // Current chat data for export
+  currentMessages: any[];
+  setCurrentMessages: (messages: any[]) => void;
+  activeChatName: string | null;
+  setActiveChatName: (name: string | null) => void;
 };
 
 export const ViewContext = createContext<

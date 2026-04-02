@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { Download } from "lucide-react";
 
 import AIChatMessage from "@/components/ChatInterface/AIChatMessage";
 import UserChatMessage from "@/components/ChatInterface/UserChatMessage";
@@ -8,7 +7,7 @@ import { AiChatInput } from "@/components/ChatInterface/userInput";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import type { Message } from "@/types/Chat";
 import { useUser } from "@/providers/user";
-import { Button } from "@/components/ui/button";
+
 
 const WELCOME_PROMPT = `Hello! Please act as the Specialization Explorer.
 1. Introduce yourself briefly.
@@ -19,6 +18,7 @@ const WELCOME_PROMPT = `Hello! Please act as the Specialization Explorer.
 3. Be friendly and inviting.`;
 
 export default function AIChatPage() {
+  const { setCurrentMessages, setActiveChatName } = useView();
 
 
   // State
@@ -55,7 +55,7 @@ export default function AIChatPage() {
   const { userId } = useUser();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const activeChatName = useMemo(() => {
+  const activeChatNameDisplay = useMemo(() => {
     if (!activeChatSessionId) {
       return null;
     }
@@ -77,48 +77,11 @@ export default function AIChatPage() {
     return `Chat ${chatSessions.length - activeIndex}`;
   }, [activeChatSessionId, chatSessions]);
 
-  const canExportChat = useMemo(
-    () =>
-      messages.some(
-        (m) => !m.isGuidedQuestion && typeof m.text === "string" && m.text.trim()
-      ),
-    [messages]
-  );
-
-  const exportChatAsText = useCallback(() => {
-    const exportableMessages = messages.filter(
-      (m) => !m.isGuidedQuestion && typeof m.text === "string" && m.text.trim()
-    );
-
-    if (exportableMessages.length === 0) {
-      return;
-    }
-
-    const transcript = exportableMessages
-      .map((m) => {
-        const speaker = m.sender === "user" ? "[USER]" : "[Specialization Explorer]";
-        return `${speaker}: ${m.text.trim()}`;
-      })
-      .join("\r\n====================\r\n");
-
-    const sanitizeFileName = (name: string) =>
-      name
-        .replace(/[<>:\"/\\|?*\x00-\x1F]/g, "")
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 120);
-
-    const baseName = sanitizeFileName(activeChatName || "chat-export") || "chat-export";
-    const blob = new Blob([transcript], { type: "text/plain;charset=utf-8" });
-    const blobUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = blobUrl;
-    link.download = `${baseName}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(blobUrl);
-  }, [messages, activeChatName]);
+  // Update context with current messages and chat name
+  useEffect(() => {
+    setCurrentMessages(messages);
+    setActiveChatName(activeChatNameDisplay);
+  }, [messages, activeChatNameDisplay, setCurrentMessages, setActiveChatName]);
 
   // Auto-scroll to bottom when messages change or when typing starts
   const scrollToBottom = useCallback(() => {
@@ -795,20 +758,6 @@ export default function AIChatPage() {
       <div className="shrink-0 w-full border-t border-border/100 bg-background pt-6 pb-6 md:pb-5">
         <div className="w-full px-4">
           <div className="mb-2 flex items-center gap-3">
-            <div className="w-[120px] shrink-0">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-10 w-full"
-                onClick={exportChatAsText}
-                disabled={!canExportChat || isLoadingHistory}
-              >
-                <Download className="h-4 w-4" />
-                Export chat
-              </Button>
-            </div>
-
             <div className="flex-1 min-w-0">
               <div className="w-full max-w-2xl 2xl:max-w-3xl mx-auto">
                 <AiChatInput
@@ -826,8 +775,6 @@ export default function AIChatPage() {
                 />
               </div>
             </div>
-
-            <div className="w-[120px] shrink-0" aria-hidden="true" />
           </div>
 
           <div className="text-center">

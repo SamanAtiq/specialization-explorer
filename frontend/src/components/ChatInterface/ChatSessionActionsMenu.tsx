@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { useState, useMemo } from "react";
+import { MoreVertical, Pencil, Trash2, Download } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,7 @@ type ChatSessionActionsMenuProps = {
   chatSessionName: string;
   displayName: string;
   userId: string;
+  isActive: boolean;
   onDeleted: () => void;
 };
 
@@ -32,12 +33,58 @@ export default function ChatSessionActionsMenu({
   chatSessionName,
   displayName,
   userId,
+  isActive,
   onDeleted,
 }: ChatSessionActionsMenuProps) {
-  const { renameChatSession } = useView();
+  const { renameChatSession, currentMessages, activeChatName } = useView();
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [renameValue, setRenameValue] = useState(chatSessionName);
   const [isSavingRename, setIsSavingRename] = useState(false);
+
+  const canExportChat = useMemo(
+    () =>
+      isActive &&
+      currentMessages.some(
+        (m) => !m.isGuidedQuestion && typeof m.text === "string" && m.text.trim()
+      ),
+    [isActive, currentMessages]
+  );
+
+  const handleExportChat = () => {
+    const exportableMessages = currentMessages.filter(
+      (m) => !m.isGuidedQuestion && typeof m.text === "string" && m.text.trim()
+    );
+
+    if (exportableMessages.length === 0) {
+      return;
+    }
+
+    const transcript = exportableMessages
+      .map((m) => {
+        const speaker = m.sender === "user" ? "[USER]" : "[Specialization Explorer]";
+        return `${speaker}: ${m.text.trim()}`;
+      })
+      .join("\r\n====================\r\n");
+
+    const sanitizeFileName = (name: string) =>
+      name
+        .replace(/[<>:\"\/\\|?*\x00-\x1F]/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 120);
+
+    const baseName =
+      sanitizeFileName(activeChatName || "chat-export") || "chat-export";
+    const blob = new Blob([transcript], { type: "text/plain;charset=utf-8" });
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = blobUrl;
+    link.download = `${baseName}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(blobUrl);
+  };
 
   const openRenameDialog = () => {
     setRenameValue(chatSessionName);
@@ -110,6 +157,12 @@ export default function ChatSessionActionsMenu({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" sideOffset={6} className="w-44">
+          {isActive && (
+            <DropdownMenuItem onSelect={handleExportChat} disabled={!canExportChat}>
+              <Download className="h-4 w-4" />
+              Export chat
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onSelect={openRenameDialog}>
             <Pencil className="h-4 w-4" />
             Rename

@@ -56,6 +56,8 @@ export default function HomePage() {
   const [activeChatSessionId, setActiveChatSessionId] = useState<string | null>(
     null
   );
+  const [currentMessages, setCurrentMessages] = useState<any[]>([]);
+  const [activeChatName, setActiveChatName] = useState<string | null>(null);
   const [isLoadingChatSessions, setIsLoadingChatSessions] = useState(true);
   const [welcomeMessage, setWelcomeMessage] = useState<string>(
     DEFAULT_WELCOME_MESSAGE
@@ -548,6 +550,10 @@ const normalizeChatSession = (session: any): ChatSession => ({
         updateChatSessionName,
         removeChatSession,
         renameChatSession,
+        currentMessages,
+        setCurrentMessages,
+        activeChatName,
+        setActiveChatName,
       }}
     >
       <SidebarProvider>
