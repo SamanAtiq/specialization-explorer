@@ -54,6 +54,7 @@ def get_db_connection():
             host = RDS_PROXY_ENDPOINT if RDS_PROXY_ENDPOINT else secret.get('host')
 
             connection = psycopg2.connect(
+                sslmode='require',
                 host=host,
                 user=secret.get('username'),
                 password=secret.get('password'),

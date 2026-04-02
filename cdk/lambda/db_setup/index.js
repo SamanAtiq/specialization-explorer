@@ -31,7 +31,10 @@ async function runMigrations(db) {
     db.dbname
   }`;
   await migrate({
-    databaseUrl: dbUrl,
+    databaseUrl: {
+      connectionString: dbUrl,
+      ssl: { rejectUnauthorized: false },
+    },
     dir: path.join(__dirname, "migrations"),
     direction: "up",
     count: Infinity,
@@ -57,7 +60,7 @@ async function createAppUsers(
     host: adminDb.host,
     database: adminDb.dbname, // target DB
     port: adminDb.port || 5432,
-    ssl: adminDb.ssl || undefined, // set true or config if needed
+    ssl: {rejectUnauthorized: false}, // set true or config if needed
   });
   await adminClient.connect();
 
