@@ -52,10 +52,10 @@ export default function AdminSidebar({
           Menu
         </div>
         <Button
-          variant={activeView === "dashboard" ? "secondary" : "ghost"}
+          variant="ghost"
           className={`w-full justify-start ${activeView === "dashboard"
-            ? "bg-[#2c5f7c]/10 text-[#2c5f7c] font-medium"
-            : "text-gray-600"
+            ? "bg-primary/10 text-primary hover:bg-primary/20 font-medium"
+            : "text-gray-600 hover:text-gray-900"
             }`}
           onClick={() => onViewChange("dashboard")}
         >
@@ -63,10 +63,10 @@ export default function AdminSidebar({
           Dashboard & Management
         </Button>
         <Button
-          variant={activeView === "analytics" ? "secondary" : "ghost"}
+          variant="ghost"
           className={`w-full justify-start ${activeView === "analytics"
-            ? "bg-[#2c5f7c]/10 text-[#2c5f7c] font-medium"
-            : "text-gray-600"
+            ? "bg-primary/10 text-primary hover:bg-primary/20 font-medium"
+            : "text-gray-600 hover:text-gray-900"
             }`}
           onClick={() => onViewChange("analytics")}
         >
@@ -74,10 +74,10 @@ export default function AdminSidebar({
           Analytics
         </Button>
         <Button
-          variant={activeView === "system-settings" ? "secondary" : "ghost"}
+          variant="ghost"
           className={`w-full justify-start ${activeView === "system-settings"
-            ? "bg-[#2c5f7c]/10 text-[#2c5f7c] font-medium"
-            : "text-gray-600"
+            ? "bg-primary/10 text-primary hover:bg-primary/20 font-medium"
+            : "text-gray-600 hover:text-gray-900"
             }`}
           onClick={() => onViewChange("system-settings")}
         >
@@ -85,10 +85,10 @@ export default function AdminSidebar({
           System Settings
         </Button>
         <Button
-          variant={activeView === "chat-history" ? "secondary" : "ghost"}
+          variant="ghost"
           className={`w-full justify-start ${activeView === "chat-history"
-            ? "bg-[#2c5f7c]/10 text-[#2c5f7c] font-medium"
-            : "text-gray-600"
+            ? "bg-primary/10 text-primary hover:bg-primary/20 font-medium"
+            : "text-gray-600 hover:text-gray-900"
             }`}
           onClick={() => onViewChange("chat-history")}
         >

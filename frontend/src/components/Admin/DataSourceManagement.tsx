@@ -556,7 +556,7 @@ export default function DataSourceManagement() {
         <MetricCard
           title="Total Users"
           value={loading ? "..." : totals.users.toLocaleString()}
-          icon={<Users className="h-5 w-5 text-[#2c5f7c]" />}
+          icon={<Users className="h-5 w-5 text-primary" />}
           trend="Unique users"
           tooltip="Calculated by counting distinct users with chat sessions."
         />
@@ -564,7 +564,7 @@ export default function DataSourceManagement() {
         <MetricCard
           title="Total Chat sessions"
           value={loading ? "..." : totals.chat_sessions.toLocaleString()}
-          icon={<MessageCircleMore className="h-5 w-5 text-[#2c5f7c]" />}
+          icon={<MessageCircleMore className="h-5 w-5 text-primary" />}
           trend="Total Chat sessions"
           tooltip="Total chat sessions across all users."
         />
@@ -588,7 +588,7 @@ export default function DataSourceManagement() {
             {/* Add Web URL Button and Dialog */}
             <Dialog open={isUrlDialogOpen} onOpenChange={setIsUrlDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="bg-secondary text-white">
+                <Button variant="outline" className="bg-primary text-white">
                   Add Web URL
                 </Button>
               </DialogTrigger>
@@ -680,7 +680,7 @@ export default function DataSourceManagement() {
 
             <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
               <DialogTrigger asChild>
-                <Button className="bg-secondary text-white">
+                <Button variant="outline" className="bg-primary text-white">
                   <Upload className="mr-2 h-4 w-4" />
                   Add Alumni Data (CSV)
                 </Button>
@@ -734,7 +734,7 @@ export default function DataSourceManagement() {
                         <div className="border rounded-lg p-4 bg-gray-50">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2 overflow-hidden">
-                              <FileText className="h-5 w-5 text-[#2c5f7c] flex-shrink-0" />
+                              <FileText className="h-5 w-5 text-primary flex-shrink-0" />
                               <span className="text-sm font-medium truncate">{csvFile.name}</span>
                             </div>
                             <Button
@@ -790,7 +790,7 @@ export default function DataSourceManagement() {
                         <div className="border rounded-lg p-4 bg-gray-50">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2 overflow-hidden">
-                              <FileText className="h-5 w-5 text-[#2c5f7c] flex-shrink-0" />
+                              <FileText className="h-5 w-5 text-primary flex-shrink-0" />
                               <span className="text-sm font-medium truncate">{metadataFile.name}</span>
                             </div>
                             <Button
@@ -874,7 +874,7 @@ export default function DataSourceManagement() {
                     Cancel
                   </Button>
                   <Button
-                    className="bg-[#2c5f7c] hover:bg-[#234d63]"
+                    className="bg-primary hover:bg-primary/90"
                     onClick={handleUpload}
                     disabled={!csvFile || !metadataFile || uploading}
                   >

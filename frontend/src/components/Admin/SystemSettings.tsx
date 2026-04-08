@@ -409,7 +409,7 @@ function PromptAssemblyCard({
     <Card className="border-gray-200 shadow-sm">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Route className="h-5 w-5 text-[#2c5f7c]" />
+          <Route className="h-5 w-5 text-primary" />
           How the Prompt Is Built
         </CardTitle>
         <CardDescription>
@@ -424,7 +424,7 @@ function PromptAssemblyCard({
             <Button
               type="button"
               variant={phase === "DETECTIVE" ? "default" : "ghost"}
-              className={phase === "DETECTIVE" ? "bg-[#2c5f7c] hover:bg-[#234d63]" : ""}
+              className={phase === "DETECTIVE" ? "bg-primary hover:bg-primary/90" : ""}
               onClick={() => setPhase("DETECTIVE")}
             >
               Detective Phase
@@ -432,7 +432,7 @@ function PromptAssemblyCard({
             <Button
               type="button"
               variant={phase === "SUGGESTION" ? "default" : "ghost"}
-              className={phase === "SUGGESTION" ? "bg-[#2c5f7c] hover:bg-[#234d63]" : ""}
+              className={phase === "SUGGESTION" ? "bg-primary hover:bg-primary/90" : ""}
               onClick={() => setPhase("SUGGESTION")}
             >
               Suggestion Phase
@@ -784,7 +784,7 @@ export default function SystemSettings() {
       <Card className="border-gray-200 shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Bot className="h-5 w-5 text-[#2c5f7c]" />
+            <Bot className="h-5 w-5 text-primary" />
             System Settings
           </CardTitle>
           <CardDescription>
@@ -801,7 +801,7 @@ export default function SystemSettings() {
 
           {loading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#2c5f7c]" />
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
             </div>
           ) : (
             <>
@@ -922,7 +922,7 @@ export default function SystemSettings() {
                   >
                     <div className="flex flex-col space-y-1.5">
                       <h3 className="font-semibold leading-none tracking-tight flex items-center gap-2">
-                        <List className="h-5 w-5 text-[#2c5f7c]" />
+                        <List className="h-5 w-5 text-primary" />
                         Specializations
                       </h3>
                       <p className="text-sm text-muted-foreground">
@@ -1155,7 +1155,7 @@ export default function SystemSettings() {
                 <Button
                   onClick={handleSaveSystemSettings}
                   disabled={saving}
-                  className="bg-[#2c5f7c] hover:bg-[#234d63]"
+                  className="bg-primary hover:bg-primary/90"
                 >
                   <Save className="mr-2 h-4 w-4" />
                   {saving ? "Saving..." : "Save Changes"}
@@ -1195,7 +1195,7 @@ export default function SystemSettings() {
           <div className="space-y-4">
             <div>
               <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-[#2c5f7c]" />
+                <Sparkles className="h-5 w-5 text-primary" />
                 Messages That Affect Text Generation
               </h4>
               <p className="text-sm text-gray-500 mt-1">
@@ -1229,7 +1229,7 @@ export default function SystemSettings() {
           <div className="border-t border-gray-200 pt-8 space-y-4">
             <div>
               <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <Eye className="h-5 w-5 text-[#2c5f7c]" />
+                <Eye className="h-5 w-5 text-primary" />
                 Messages That Do Not Affect Text Generation
               </h4>
               <p className="text-sm text-gray-500 mt-1">
