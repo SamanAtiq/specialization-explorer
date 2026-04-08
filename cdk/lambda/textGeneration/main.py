@@ -14,7 +14,9 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 def handler(event, context=None):
-    logger.info("Event: %s", json.dumps(event))
+    # Log event but exclude body to prevent sensitive data exposure (user_id, chat_session_id)
+    safe_event = {k: v for k, v in event.items() if k != 'body'}
+    logger.info("Event: %s (body omitted)", json.dumps(safe_event))
     
     body = {}
     if 'body' in event and event['body']:

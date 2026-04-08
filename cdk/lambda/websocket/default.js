@@ -6,7 +6,7 @@ exports.handler = async (event) => {
   console.log("WebSocket message received:", {
     connectionId: event.requestContext.connectionId,
     routeKey: event.requestContext.routeKey,
-    body: event.body,
+    // Omit body to avoid logging sensitive data like user_id and chat_session_id
     timestamp: new Date().toISOString(),
   });
 

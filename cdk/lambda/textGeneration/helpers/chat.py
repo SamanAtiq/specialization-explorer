@@ -291,30 +291,40 @@ def get_response(
                     chunk = delta["text"]
                     full_response_text += chunk
                     
-                    # Look for content after <answer>
+                    # Look for answer tags; if present, use the content inside, else use the whole text
                     match = re.search(r'<answer>(.*)', full_response_text, re.DOTALL)
                     if match:
                         current_answer = match.group(1)
-                        is_closed = '</answer>' in full_response_text
+                    else:
+                        current_answer = full_response_text
                         
-                        if is_closed:
-                            safe_answer = current_answer.split('</answer>')[0]
-                        else:
-                            # Withhold the last 10 characters to prevent accidental output of </answer> fragments
-                            safe_answer = current_answer[:-10] if len(current_answer) > 10 else ""
-                        
-                        if len(safe_answer) > last_answer_len:
-                            new_text = safe_answer[last_answer_len:]
-                            last_answer_len = len(safe_answer)
-                            if stream_callback:
-                                stream_callback(new_text)
+                    # Remove cited indices or unexpected closing tags from the stream
+                    current_answer = current_answer.split('</answer>')[0].split('<cited')[0]
+                    
+                    is_closed = '</answer>' in full_response_text or '<cited' in full_response_text
+                    
+                    if is_closed:
+                        safe_answer = current_answer
+                    else:
+                        # Withhold the last 15 characters to prevent accidental output of tag fragments
+                        safe_answer = current_answer[:-15] if len(current_answer) > 15 else ""
+                    
+                    if len(safe_answer) > last_answer_len:
+                        new_text = safe_answer[last_answer_len:]
+                        last_answer_len = len(safe_answer)
+                        if stream_callback:
+                            stream_callback(new_text)
 
         # Parse final answer text properly
         final_answer_match = re.search(r'<answer>(.*?)</answer>', full_response_text, re.DOTALL)
         if final_answer_match:
             answer_text = final_answer_match.group(1).strip()
         else:
-            answer_text = full_response_text.strip()
+            answer_text = full_response_text.split('<cited_indices>')[0].strip()
+            
+        # Ensure any remaining buffered text (or the entire text if the model forgot tags) is pushed
+        if stream_callback and answer_text and len(answer_text) > last_answer_len:
+            stream_callback(answer_text[last_answer_len:])
             
         # Parse cited_indices
         indices_match = re.search(r'<cited_indices>\s*\[(.*?)\]\s*</cited_indices>', full_response_text, re.DOTALL)
