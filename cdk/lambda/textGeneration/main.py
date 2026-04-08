@@ -89,21 +89,15 @@ def handler(event, context=None):
                 except Exception as e:
                     logger.error(f"Failed to initialize WebSocket client: {e}")
 
-        buffer_state = {"text": ""}
-
         def stream_chunk(chunk_text):
             if apigw_management and connection_id:
-                buffer_state["text"] += chunk_text
-                if len(buffer_state["text"]) >= 30 or '\n' in buffer_state["text"]:
-                    try:
-                        apigw_management.post_to_connection(
-                            ConnectionId=connection_id,
-                            Data=json.dumps({'type': 'chunk', 'content': buffer_state["text"]})
-                        )
-                        logger.info(f"Sent Intermediate chunk to {connection_id}")
-                        buffer_state["text"] = ""
-                    except Exception as e:
-                        logger.error(f"Failed to send stream chunk: {e}")
+                try:
+                    apigw_management.post_to_connection(
+                        ConnectionId=connection_id,
+                        Data=json.dumps({'type': 'chunk', 'content': chunk_text})
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to send stream chunk: {e}")
 
         response_data = get_response(
             query=query,
@@ -116,16 +110,6 @@ def handler(event, context=None):
             db_connection=conn,
             stream_callback=stream_chunk
         )
-
-        if apigw_management and connection_id and buffer_state["text"]:
-            try:
-                apigw_management.post_to_connection(
-                    ConnectionId=connection_id,
-                    Data=json.dumps({'type': 'chunk', 'content': buffer_state["text"]})
-                )
-                logger.info(f"Sent final buffered chunk to {connection_id}")
-            except Exception as e:
-                logger.error(f"Failed to send final stream chunk: {e}")
         
         # Format response to match API contract
         # Map sources_used -> sources

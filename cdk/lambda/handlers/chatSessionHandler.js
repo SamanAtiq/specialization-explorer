@@ -1,5 +1,4 @@
 const crypto = require("crypto");
-const { getCorsHeaders } = require("./utils/cors.js");
 const postgres = require("postgres");
 const {
   SecretsManagerClient,
@@ -37,10 +36,15 @@ const initConnection = async () => {
   }
 };
 
-const createResponse = async (event) => ({
-    statusCode: 200,
-    headers: await getCorsHeaders(event),
-    body: "",
+const createResponse = () => ({
+  statusCode: 200,
+  headers: {
+    "Access-Control-Allow-Headers":
+      "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "*",
+  },
+  body: "",
 });
 
 const parseBody = (body) => {
@@ -58,7 +62,7 @@ const handleError = (error, response) => {
 };
 
 exports.handler = async (event) => {
-  const response = await createResponse(event);
+  const response = createResponse();
   let data;
 
   try {
@@ -90,23 +94,8 @@ exports.handler = async (event) => {
       case "POST /chat_sessions": {
         const body = parseBody(event.body);
         const userId = body.user_id || body.userId || body.user_sessions_session_id;
-        const requestorId = event.requestContext?.authorizer?.userId;
-        const requestorRole = event.requestContext?.authorizer?.role;
-
 
         if (!userId) {
-          response.statusCode = 400;
-          response.body = JSON.stringify({ error: 'user_id is required' });
-          break;
-        }
-
-        if (requestorId !== userId && requestorRole !== 'admin') {
-          response.statusCode = 403;
-          response.body = JSON.stringify({ error: 'Forbidden: Cross-user session creation denied' });
-          break;
-        }
-
-        if ($false) {
           response.statusCode = 400;
           response.body = JSON.stringify({ error: "user_id is required" });
           break;
@@ -207,7 +196,7 @@ exports.handler = async (event) => {
 
       case "GET /chat_sessions/{chat_session_id}/chat_history": {
         const chatSessionId = event.pathParameters?.chat_session_id;
-        const authenticatedUserId = event?.requestContext?.authorizer?.userId;
+        const requestingUserId = event.queryStringParameters?.user_id;
 
         if (!chatSessionId) {
           response.statusCode = 400;
@@ -215,9 +204,9 @@ exports.handler = async (event) => {
           break;
         }
 
-        if (!authenticatedUserId) {
-          response.statusCode = 401;
-          response.body = JSON.stringify({ error: "Authentication required" });
+        if (!requestingUserId) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "user_id query parameter is required" });
           break;
         }
 
@@ -235,7 +224,7 @@ exports.handler = async (event) => {
 
         // Ownership validation (mandatory)
         const ownerId = chatSessionResult[0].user_id;
-        if (ownerId !== authenticatedUserId) {
+        if (ownerId !== requestingUserId) {
           response.statusCode = 403;
           response.body = JSON.stringify({
             error: "Access denied",
@@ -258,6 +247,62 @@ exports.handler = async (event) => {
         };
 
         response.statusCode = 200;
+        response.body = JSON.stringify(data);
+        break;
+      }
+
+      case "GET /chat_sessions/{chat_session_id}/interactions": {
+        const chatSessionId = event.pathParameters?.chat_session_id;
+        const requestingUserSessionId = event.queryStringParameters?.user_session_id;
+
+        if (!chatSessionId) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "chat_session_id is required" });
+          break;
+        }
+
+        // SECURITY: Verify chat session exists and validate ownership
+        const chatSessionResult = await sqlConnection`
+          SELECT id, user_session_id FROM chat_sessions WHERE id = ${chatSessionId}
+        `;
+
+        if (chatSessionResult.length === 0) {
+          response.statusCode = 404;
+          response.body = JSON.stringify({ error: "Chat session not found" });
+          break;
+        }
+
+        // SECURITY: Validate session ownership (mandatory)
+        if (!requestingUserSessionId) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "user_session_id query parameter is required" });
+          break;
+        }
+
+        const sessionOwner = chatSessionResult[0].user_session_id;
+        if (sessionOwner !== requestingUserSessionId) {
+          console.warn(`Unauthorized access attempt: user_session ${requestingUserSessionId} tried to access chat_session ${chatSessionId} owned by ${sessionOwner}`);
+          response.statusCode = 403;
+          response.body = JSON.stringify({
+            error: "Access denied",
+            message: "You do not have permission to access this chat session"
+          });
+          break;
+        }
+
+        // Fetch all interactions for this chat session
+        const interactions = await sqlConnection`
+          SELECT id, sender_role, query_text, response_text, source_chunks, created_at, order_index
+          FROM user_interactions
+          WHERE chat_session_id = ${chatSessionId}
+          ORDER BY order_index ASC, created_at ASC
+        `;
+
+        data = {
+          chat_session_id: chatSessionResult[0].id,
+          interactions,
+        };
+
         response.body = JSON.stringify(data);
         break;
       }
