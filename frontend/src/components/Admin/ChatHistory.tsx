@@ -225,7 +225,7 @@ export default function ChatHistory() {
 
         return (
             <div className="flex flex-col gap-1 w-full text-left">
-                <div className="flex items-center gap-1.5 break-all text-[11px] font-medium text-[#2c5f7c]">
+                <div className="flex items-center gap-1.5 break-all text-[11px] font-medium text-primary">
                     <span className="bg-gray-200 text-gray-700 px-1 py-0.5 rounded text-[9px] font-bold">{type}</span>
                     <a href={uri} target="_blank" rel="noopener noreferrer" className="hover:underline" title={uri}>{uri}</a>
                 </div>
@@ -258,7 +258,7 @@ export default function ChatHistory() {
                     onClick={handleRefresh}
                     className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors shadow-sm"
                 >
-                    <RefreshCw size={16} className={loadingUsers ? "animate-spin text-[#2c5f7c]" : ""} />
+                    <RefreshCw size={16} className={loadingUsers ? "animate-spin text-primary" : ""} />
                     Refresh Data
                 </button>
             </div>
@@ -269,7 +269,7 @@ export default function ChatHistory() {
                 <Card className="md:col-span-1 border-gray-200 shadow-sm flex flex-col overflow-hidden h-full">
                     <CardHeader className="flex-shrink-0 border-b pb-4">
                         <CardTitle className="flex items-center gap-2 text-lg">
-                            <User className="h-5 w-5 text-[#2c5f7c]" />
+                            <User className="h-5 w-5 text-primary" />
                             Users & Sessions
                         </CardTitle>
                         <CardDescription className="text-xs">
@@ -315,15 +315,15 @@ export default function ChatHistory() {
                                                             className={cn(
                                                                 "w-full text-left p-4 rounded-xl transition-all border",
                                                                 selectedSessionId === session.id
-                                                                    ? "bg-white border-[#2c5f7c] shadow-md ring-1 ring-[#2c5f7c]/20"
-                                                                    : "bg-white border-gray-200 shadow-sm hover:border-[#2c5f7c]/50 hover:shadow-md"
+                                                                    ? "bg-white border-primary shadow-md ring-1 ring-primary/20"
+                                                                    : "bg-white border-gray-200 shadow-sm hover:border-primary/50 hover:shadow-md"
                                                             )}
                                                         >
                                                             <div className="flex items-center gap-3 mb-1.5">
-                                                                <MessageSquare size={16} className={selectedSessionId === session.id ? "text-[#2c5f7c]" : "text-gray-400"} />
+                                                                <MessageSquare size={16} className={selectedSessionId === session.id ? "text-primary" : "text-gray-400"} />
                                                                 <span className={cn(
                                                                     "text-sm font-semibold truncate",
-                                                                    selectedSessionId === session.id ? "text-[#2c5f7c]" : "text-gray-700"
+                                                                    selectedSessionId === session.id ? "text-primary" : "text-gray-700"
                                                                 )}>
                                                                     {session.title || `Chat ${sessionIndex + 1}`}
                                                                 </span>
@@ -348,7 +348,7 @@ export default function ChatHistory() {
                 <Card className="md:col-span-2 border-gray-200 shadow-sm flex flex-col overflow-hidden h-full">
                     <CardHeader className="flex-shrink-0 border-b pb-4 bg-gray-50/50">
                         <CardTitle className="text-lg flex items-center gap-2">
-                            <Bot className="h-5 w-5 text-[#2c5f7c]" />
+                            <Bot className="h-5 w-5 text-primary" />
                             Conversation
                         </CardTitle>
                         <CardDescription className="text-xs">
@@ -364,7 +364,7 @@ export default function ChatHistory() {
                             </div>
                         ) : loadingMessages ? (
                             <div className="flex h-full items-center justify-center">
-                                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#2c5f7c]" />
+                                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
                             </div>
                         ) : messages.length === 0 ? (
                             <div className="flex h-full items-center justify-center text-gray-400">

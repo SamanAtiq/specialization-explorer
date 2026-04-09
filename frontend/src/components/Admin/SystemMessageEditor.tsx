@@ -178,14 +178,14 @@ function PlacementStack({
               className={[
                 "rounded-lg border px-3 py-3 transition",
                 active
-                  ? "border-[#2c5f7c] bg-[#2c5f7c]/10"
+                  ? "border-primary bg-primary/10"
                   : "border-gray-200 bg-gray-50",
               ].join(" ")}
             >
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-medium text-sm text-gray-900">{title}</span>
                 {active ? (
-                  <span className="text-xs rounded-full bg-[#2c5f7c] text-white px-2 py-1">
+                  <span className="text-xs rounded-full bg-primary text-white px-2 py-1">
                     This message
                   </span>
                 ) : null}
@@ -377,7 +377,7 @@ export default function SystemMessageEditor({
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
           <div className="space-y-2">
             <CardTitle className="flex items-center gap-2">
-              <Bot className="h-5 w-5 text-[#2c5f7c]" />
+              <Bot className="h-5 w-5 text-primary" />
               {title}
             </CardTitle>
 
@@ -440,7 +440,7 @@ export default function SystemMessageEditor({
               className={[
                 "shrink-0 rounded-full border px-3 py-1 text-xs transition",
                 i === idx
-                  ? "border-[#2c5f7c] bg-[#2c5f7c]/10 text-[#2c5f7c]"
+                  ? "border-primary bg-primary/10 text-primary"
                   : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50",
               ].join(" ")}
               title={`v${v.version}${v.is_active ? " (active)" : ""}`}
@@ -546,7 +546,7 @@ export default function SystemMessageEditor({
               !(draft ?? "").trim() ||
               isOverLimit
             }
-            className="bg-[#2c5f7c] hover:bg-[#234d63]"
+            className="bg-primary hover:bg-primary/90"
           >
             <Save className="mr-2 h-4 w-4" />
             {saving ? "Saving..." : "Save New Version"}
@@ -616,7 +616,7 @@ export default function SystemMessageEditor({
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Map className="h-5 w-5 text-[#2c5f7c]" />
+              <Map className="h-5 w-5 text-primary" />
               Where does this go?
             </DialogTitle>
             <DialogDescription>
@@ -640,7 +640,7 @@ export default function SystemMessageEditor({
                       variant={placementPhase === "DETECTIVE" ? "default" : "ghost"}
                       className={
                         placementPhase === "DETECTIVE"
-                          ? "bg-[#2c5f7c] hover:bg-[#234d63]"
+                          ? "bg-primary hover:bg-primary/90"
                           : ""
                       }
                       onClick={() => setPlacementPhase("DETECTIVE")}
@@ -652,7 +652,7 @@ export default function SystemMessageEditor({
                       variant={placementPhase === "SUGGESTION" ? "default" : "ghost"}
                       className={
                         placementPhase === "SUGGESTION"
-                          ? "bg-[#2c5f7c] hover:bg-[#234d63]"
+                          ? "bg-primary hover:bg-primary/90"
                           : ""
                       }
                       onClick={() => setPlacementPhase("SUGGESTION")}

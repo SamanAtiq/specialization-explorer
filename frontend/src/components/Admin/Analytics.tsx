@@ -159,7 +159,7 @@ export default function Analytics() {
 
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#2c5f7c]"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -194,7 +194,7 @@ export default function Analytics() {
                 <Line
                   type="monotone"
                   dataKey="users"
-                  stroke="#2c5f7c"
+                  stroke="rgb(0, 85, 183)"
                   strokeWidth={3}
                   dot={false}
                   activeDot={{ r: 6, strokeWidth: 0 }}
@@ -227,7 +227,7 @@ export default function Analytics() {
                 <Line
                   type="monotone"
                   dataKey="chat_sessions"
-                  stroke="#1f6f8b"
+                  stroke="rgb(0, 110, 220)"
                   strokeWidth={3}
                   dot={false}
                   activeDot={{ r: 6, strokeWidth: 0 }}
@@ -267,7 +267,7 @@ export default function Analytics() {
                 <Line
                   type="monotone"
                   dataKey="questions"
-                  stroke="#3d7a9a"
+                  stroke="rgb(50, 140, 240)"
                   strokeWidth={3}
                   dot={false}
                   activeDot={{ r: 6, strokeWidth: 0 }}

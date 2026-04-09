@@ -306,7 +306,7 @@ export default function AIChatMessage({
 
           {!isTyping && warning && (
             <div className="mt-4">
-              <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
+              <div className="rounded-lg border border-orange-300 bg-orange-50 px-3 py-2 text-sm text-orange-800 dark:border-orange-900/50 dark:bg-orange-950/40 dark:text-orange-200">
                 {warning}
               </div>
             </div>

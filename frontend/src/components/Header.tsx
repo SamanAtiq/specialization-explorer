@@ -28,7 +28,7 @@ export default function Header() {
   };
 
   return (
-    <header className="fixed top-0 left-0 w-full bg-gradient-to-r from-primary to-accent text-white h-[80px] flex items-center px-6 shadow-md z-50">
+    <header className="fixed top-0 left-0 w-full bg-primary text-white h-[80px] flex items-center px-6 shadow-md z-50">
       <div className="w-full flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
