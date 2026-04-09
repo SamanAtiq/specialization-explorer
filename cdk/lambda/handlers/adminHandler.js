@@ -85,7 +85,6 @@ exports.handler = async (event) => {
 
   // Ensure database connection is ready
   await initConnection();
-  await initConnection();
 
   let data; // Variable to store response data
   try {

@@ -14,35 +14,20 @@ RDS_PROXY_ENDPOINT = os.environ.get("RDS_PROXY_ENDPOINT")
 
 # Cached resources
 connection = None
-secret_cache = {}
 
-# AWS Clients
-secrets_manager_client = boto3.client("secretsmanager", region_name=REGION)
+# AWS Powertools
+from aws_lambda_powertools.utilities import parameters
 
 def get_secret():
-
     if not DB_SECRET_NAME:
         raise ValueError("SM_DB_CREDENTIALS environment variable not set")
-
-    if DB_SECRET_NAME in secret_cache:
-        logger.info("Using cached database credentials")
-        return secret_cache[DB_SECRET_NAME]
-
+        
     try:
-        get_secret_value_response = secrets_manager_client.get_secret_value(
-            SecretId=DB_SECRET_NAME
-        )
+        # Powertools caches for 5 mins (300 sec) and handles JSON parsing
+        return parameters.get_secret(DB_SECRET_NAME, transform='json', max_age=300)
     except Exception as e:
         logger.error(f"Error retrieving secret {DB_SECRET_NAME}: {e}")
         raise e
-
-    if 'SecretString' in get_secret_value_response:
-        secret = get_secret_value_response['SecretString']
-        secret_value = json.loads(secret)
-        secret_cache[DB_SECRET_NAME] = secret_value
-        return secret_value
-    else:
-        raise ValueError("SecretString not found in secret response")
 
 def get_db_connection():
     global connection
@@ -63,5 +48,11 @@ def get_db_connection():
             )
         return connection
     except Exception as e:
+        if connection: 
+            try: 
+                connection.close()
+            except: 
+                pass
+            connection = None
         logger.error(f"Failed to connect to database: {e}")
         raise e

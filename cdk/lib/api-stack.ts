@@ -22,6 +22,7 @@ import * as ecr from "aws-cdk-lib/aws-ecr";
 import * as s3n from "aws-cdk-lib/aws-s3-notifications";
 import * as bedrock from "aws-cdk-lib/aws-bedrock";
 import * as cr from "aws-cdk-lib/custom-resources";
+import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
 
 interface ApiGatewayStackProps extends cdk.StackProps {
   ecrRepositories: { [key: string]: ecr.Repository };
@@ -781,7 +782,8 @@ export class ApiGatewayStack extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_22_X,
         code: lambda.Code.fromAsset("lambda/adminAuthorizerFunction"),
         handler: "adminAuthorizerFunction.handler",
-        timeout: Duration.seconds(300),
+        timeout: Duration.seconds(30),
+        reservedConcurrentExecutions: 100,
         vpc: vpcStack.vpc,
         environment: {
           SM_COGNITO_CREDENTIALS: this.secret.secretName,
@@ -797,6 +799,15 @@ export class ApiGatewayStack extends cdk.Stack {
       new iam.ServicePrincipal("apigateway.amazonaws.com")
     );
 
+    new cloudwatch.Alarm(this, 'AdminAuthorizerConcurrencyAlarm', {
+      metric: adminAuthorizationFunction.metric('ConcurrentExecutions', { statistic: cloudwatch.Stats.MAXIMUM }),
+      threshold: 80,
+      evaluationPeriods: 2,
+      datapointsToAlarm: 2,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+      alarmDescription: 'Admin authorizer approaching concurrency limit',
+    });
+
     const apiGW_authorizationFunction = adminAuthorizationFunction.node
       .defaultChild as lambda.CfnFunction;
     apiGW_authorizationFunction.overrideLogicalId("adminLambdaAuthorizer");
@@ -808,8 +819,9 @@ export class ApiGatewayStack extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_22_X,
         code: lambda.Code.fromAsset("lambda/authorization"),
         handler: "userAuthorizerFunction.handler",
-        timeout: Duration.seconds(300),
+        timeout: Duration.seconds(30),
         memorySize: 256,
+        reservedConcurrentExecutions: 50,
         layers: [jwt],
         role: lambdaRole,
         environment: {
@@ -823,6 +835,15 @@ export class ApiGatewayStack extends cdk.Stack {
       new iam.ServicePrincipal("apigateway.amazonaws.com")
     );
 
+    new cloudwatch.Alarm(this, 'UserAuthorizerConcurrencyAlarm', {
+      metric: userAuthFunction.metric('ConcurrentExecutions', { statistic: cloudwatch.Stats.MAXIMUM }),
+      threshold: 40,
+      evaluationPeriods: 2,
+      datapointsToAlarm: 2,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+      alarmDescription: 'User authorizer approaching concurrency limit',
+    });
+
     const apiGW_userauthorizationFunction = userAuthFunction.node
       .defaultChild as lambda.CfnFunction;
     apiGW_userauthorizationFunction.overrideLogicalId("userLambdaAuthorizer");
@@ -834,6 +855,7 @@ export class ApiGatewayStack extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_22_X,
         handler: "publicTokenFunction.handler",
         layers: [jwt],
+        reservedConcurrentExecutions: 50,
         code: lambda.Code.fromAsset("lambda/publicTokenFunction"),
         environment: {
           JWT_SECRET: jwtSecret.secretArn,
@@ -851,6 +873,15 @@ export class ApiGatewayStack extends cdk.Stack {
       new iam.ServicePrincipal("apigateway.amazonaws.com")
     );
 
+    new cloudwatch.Alarm(this, 'PublicTokenConcurrencyAlarm', {
+      metric: publicTokenLambda.metric('ConcurrentExecutions', { statistic: cloudwatch.Stats.MAXIMUM }),
+      threshold: 40,
+      evaluationPeriods: 2,
+      datapointsToAlarm: 2,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+      alarmDescription: 'Public Token Lambda approaching concurrency limit',
+    });
+
     // Change Logical ID to match the one decleared in YAML file of Open API
     const apiGW_publicTokenFunction = publicTokenLambda.node
       .defaultChild as lambda.CfnFunction;
@@ -860,7 +891,7 @@ export class ApiGatewayStack extends cdk.Stack {
       runtime: lambda.Runtime.NODEJS_22_X,
       code: lambda.Code.fromAsset("lambda/authorization"),
       handler: "preSignUp.handler",
-      timeout: Duration.seconds(300),
+      timeout: Duration.seconds(30),
       environment: {
         ALLOWED_EMAIL_DOMAINS: "/SpecEx/AllowedEmailDomains",
       },
@@ -913,7 +944,7 @@ export class ApiGatewayStack extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_22_X,
         code: lambda.Code.fromAsset("lambda/authorization"),
         handler: "addAdminOnSignUp.handler",
-        timeout: Duration.seconds(300),
+        timeout: Duration.seconds(30),
         environment: {
           SM_DB_CREDENTIALS: db.secretPathTableCreator.secretName,
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
@@ -932,8 +963,6 @@ export class ApiGatewayStack extends cdk.Stack {
 
 
 
-    // --- ECR Image Waiter code removed as it's handled in KnowledgeBaseStack ---
-
     const lambdaTextGen = new lambda.Function(
       this,
       `${id}-lambdaTextGen`,
@@ -943,7 +972,8 @@ export class ApiGatewayStack extends cdk.Stack {
         code: lambda.Code.fromAsset("lambda/textGeneration"),
         timeout: cdk.Duration.seconds(60),
         role: lambdaRole,
-        layers: [psycopgLayer],
+        reservedConcurrentExecutions: 100,
+        layers: [psycopgLayer, powertoolsLayer],
         vpc: vpcStack.vpc,
         tracing: lambda.Tracing.ACTIVE,
         memorySize: 512,
@@ -968,6 +998,15 @@ export class ApiGatewayStack extends cdk.Stack {
       principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
       action: "lambda:InvokeFunction",
       sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/chat_sessions*`,
+    });
+
+    new cloudwatch.Alarm(this, 'TextGenConcurrencyAlarm', {
+      metric: lambdaTextGen.metric('ConcurrentExecutions', { statistic: cloudwatch.Stats.MAXIMUM }),
+      threshold: 80,
+      evaluationPeriods: 2,
+      datapointsToAlarm: 2,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+      alarmDescription: 'Text Generation Lambda approaching concurrency limit',
     });
 
     lambdaTextGen.addEnvironment('ALLOWED_ORIGIN_PARAM', '/SpecEx/API/AllowedOrigins');
@@ -1141,7 +1180,7 @@ export class ApiGatewayStack extends cdk.Stack {
       runtime: lambda.Runtime.NODEJS_22_X,
       code: lambda.Code.fromAsset("lambda"),
       handler: "handlers/userHandler.handler",
-      timeout: Duration.seconds(300),
+      timeout: Duration.seconds(30),
       vpc: vpcStack.vpc,
       environment: {
         SM_DB_CREDENTIALS: db.secretPathUser.secretName,
@@ -1150,6 +1189,7 @@ export class ApiGatewayStack extends cdk.Stack {
       },
       functionName: `${id}-userFunction`,
       memorySize: 512,
+      reservedConcurrentExecutions: 50,
       layers: [postgres],
       role: lambdaRole,
       tracing: lambda.Tracing.ACTIVE,
@@ -1184,7 +1224,7 @@ export class ApiGatewayStack extends cdk.Stack {
       runtime: lambda.Runtime.NODEJS_22_X,
       code: lambda.Code.fromAsset("lambda"),
       handler: "handlers/systemMessagesHandler.handler",
-      timeout: Duration.seconds(300),
+      timeout: Duration.seconds(30),
       vpc: vpcStack.vpc,
       environment: {
         SM_DB_CREDENTIALS: db.secretPathUser.secretName,
@@ -1245,7 +1285,7 @@ export class ApiGatewayStack extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_22_X,
         code: lambda.Code.fromAsset("lambda"),
         handler: "handlers/chatSessionHandler.handler",
-        timeout: Duration.seconds(300),
+        timeout: Duration.seconds(30),
         vpc: vpcStack.vpc,
         environment: {
           SM_DB_CREDENTIALS: db.secretPathUser.secretName,
@@ -1285,7 +1325,7 @@ export class ApiGatewayStack extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_22_X,
         code: lambda.Code.fromAsset("lambda"),
         handler: "handlers/adminHandler.handler",
-        timeout: Duration.seconds(300),
+        timeout: Duration.seconds(30),
         vpc: vpcStack.vpc,
         environment: {
           SM_DB_CREDENTIALS: db.secretPathUser.secretName,
@@ -1341,10 +1381,22 @@ export class ApiGatewayStack extends cdk.Stack {
       handler: "connect.handler",
       code: lambda.Code.fromAsset("lambda/websocket"),
       timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      reservedConcurrentExecutions: 50,
+      tracing: lambda.Tracing.ACTIVE,
       environment: {
         JWT_SECRET: jwtSecret.secretArn,
       },
       layers: [jwt],
+    });
+
+    new cloudwatch.Alarm(this, 'ConnectFunctionConcurrencyAlarm', {
+      metric: connectFunction.metric('ConcurrentExecutions', { statistic: cloudwatch.Stats.MAXIMUM }),
+      threshold: 40,
+      evaluationPeriods: 2,
+      datapointsToAlarm: 2,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+      alarmDescription: 'WebSocket Connect Lambda approaching concurrency limit',
     });
 
     connectFunction.addEnvironment('ALLOWED_ORIGIN_PARAM', '/SpecEx/API/AllowedOrigins');
@@ -1365,6 +1417,8 @@ export class ApiGatewayStack extends cdk.Stack {
         handler: "disconnect.handler",
         code: lambda.Code.fromAsset("lambda/websocket"),
         timeout: cdk.Duration.seconds(30),
+        memorySize: 256,
+        tracing: lambda.Tracing.ACTIVE,
       }
     );
 
@@ -1374,10 +1428,22 @@ export class ApiGatewayStack extends cdk.Stack {
       handler: "default.handler",
       code: lambda.Code.fromAsset("lambda/websocket"),
       timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      reservedConcurrentExecutions: 50,
+      tracing: lambda.Tracing.ACTIVE,
       environment: {
         TEXT_GEN_FUNCTION_NAME: lambdaTextGen.functionName,
       },
       functionName: `${id}-DefaultFunction`,
+    });
+
+    new cloudwatch.Alarm(this, 'DefaultFunctionConcurrencyAlarm', {
+      metric: defaultFunction.metric('ConcurrentExecutions', { statistic: cloudwatch.Stats.MAXIMUM }),
+      threshold: 40,
+      evaluationPeriods: 2,
+      datapointsToAlarm: 2,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+      alarmDescription: 'WebSocket Default Lambda approaching concurrency limit',
     });
 
     defaultFunction.addEnvironment('ALLOWED_ORIGIN_PARAM', '/SpecEx/API/AllowedOrigins');
