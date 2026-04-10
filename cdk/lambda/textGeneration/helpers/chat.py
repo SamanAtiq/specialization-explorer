@@ -1,5 +1,6 @@
 import boto3
 import logging
+import re
 from typing import Dict, Any, Optional, List, Tuple
 
 from helpers.crud import (
@@ -27,7 +28,7 @@ def _rewrite_query_for_retrieval(
     """
     # Build a condensed history string (last few exchanges only)
     history_lines = []
-    for msg in chat_history[-6:]:
+    for msg in chat_history[-10:]:
         role = "User" if msg["sender"] == "user" else "Assistant"
         history_lines.append(f"{role}: {msg['content']}")
     history_block = "\n".join(history_lines) if history_lines else "(no prior conversation)"
@@ -277,11 +278,11 @@ def get_response(
     bedrock_runtime = boto3.client("bedrock-runtime", region_name=llm_region)
     
     full_response_text = ""
+    yielded_text = ""
+    answer_started = False
     answer_text = ""
     cited_indices = []
-    last_answer_len = 0
 
-    import re
     try:
         response = bedrock_runtime.converse_stream(**request_payload)
         for event in response.get("stream", []):
@@ -291,28 +292,41 @@ def get_response(
                     chunk = delta["text"]
                     full_response_text += chunk
                     
-                    # Look for answer tags; if present, use the content inside, else use the whole text
-                    match = re.search(r'<answer>(.*)', full_response_text, re.DOTALL)
-                    if match:
-                        current_answer = match.group(1)
+                    # 1. Wait for <answer> to start processing
+                    if "<answer>" in full_response_text:
+                        answer_started = True
+                        target_text = full_response_text.split("<answer>", 1)[1]
+                    elif not answer_started and len(full_response_text) > 300 and "<" not in full_response_text:
+                        # Extreme fallback: Only trigger if string is very long and NO tags are forming
+                        target_text = full_response_text
                     else:
-                        current_answer = full_response_text
+                        continue
                         
-                    # Remove cited indices or unexpected closing tags from the stream
-                    current_answer = current_answer.split('</answer>')[0].split('<cited')[0]
-                    
-                    is_closed = '</answer>' in full_response_text or '<cited' in full_response_text
-                    
-                    if is_closed:
-                        safe_answer = current_answer
+                    # 2. Stop extracting if we hit a closing tag
+                    stop_found = False
+                    for stop_tag in ["</answer>", "<cited"]:
+                        stop_idx = target_text.find(stop_tag)
+                        if stop_idx != -1:
+                            target_text = target_text[:stop_idx]
+                            stop_found = True
+                            
+                    # 3. Prevent partial tags at the end of the chunk from leaking
+                    if not stop_found:
+                        held_back = 0
+                        for stop_tag in ["</answer>", "<cited_indices>", "</cited_indices>", "<cited"]:
+                            for i in range(1, len(stop_tag)):
+                                if target_text.endswith(stop_tag[:i]):
+                                    held_back = max(held_back, i)
+                        
+                        safe_text = target_text[:-held_back] if held_back > 0 else target_text
                     else:
-                        # Withhold the last 15 characters to prevent accidental output of tag fragments
-                        safe_answer = current_answer[:-15] if len(current_answer) > 15 else ""
-                    
-                    if len(safe_answer) > last_answer_len:
-                        new_text = safe_answer[last_answer_len:]
-                        last_answer_len = len(safe_answer)
-                        if stream_callback:
+                        safe_text = target_text
+                        
+                    # 4. Stream only the newly added text
+                    if len(safe_text) > len(yielded_text):
+                        new_text = safe_text[len(yielded_text):]
+                        yielded_text += new_text
+                        if stream_callback and new_text:
                             stream_callback(new_text)
 
         # Parse final answer text properly
@@ -321,10 +335,6 @@ def get_response(
             answer_text = final_answer_match.group(1).strip()
         else:
             answer_text = full_response_text.split('<cited_indices>')[0].strip()
-            
-        # Ensure any remaining buffered text (or the entire text if the model forgot tags) is pushed
-        if stream_callback and answer_text and len(answer_text) > last_answer_len:
-            stream_callback(answer_text[last_answer_len:])
             
         # Parse cited_indices
         indices_match = re.search(r'<cited_indices>\s*\[(.*?)\]\s*</cited_indices>', full_response_text, re.DOTALL)

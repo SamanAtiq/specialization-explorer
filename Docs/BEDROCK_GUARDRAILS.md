@@ -129,7 +129,7 @@ response = bedrock_runtime.apply_guardrail(
 
 - Input guardrails: `_apply_input_guardrails(query, guardrail_id)` is invoked before generation. If a guardrail blocks the input, a user-friendly message is returned and processing stops.
 - Output guardrails: `_apply_output_guardrails(response_text, guardrail_id, guardrail_assessments)` is invoked after generation. If guardrails block the response, the response is replaced with the configured `blockedOutputsMessaging` fallback and the `guardrail_blocked` flag is returned in the API result.
-- Assessments (returned by the guardrail API) are appended to `assessments` in the response when applicable.
+- Assessments (returned by the guardrail API) are appended to `assessments` in the response when available.
 
 ### IAM and Permissions
 

@@ -60,7 +60,7 @@ Sharing chats:
 - Generated materials are session-scoped and can be exported.
 
  Grading:
-- The Short Answer material type supports a text grading/feedback flow (AI-assisted). The UI will show grading results where applicable.
+- The Short Answer material type supports a text grading/feedback flow (AI-assisted). The UI will show grading results where available.
 - MCQ material type will provide feedback based on whether the user chooses the correct or wrong answer. The UI will show hints or feedback as needed.
 - Flashcard is self graded. 
 

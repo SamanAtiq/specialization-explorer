@@ -33,7 +33,7 @@ You agree not to use the Model or its Derivatives in any of the following ways:
 
 ## 1. Legal
 
-In any way that violates any applicable national, federal, provincial, local or international law or regulation.
+In any way that violates any available national, federal, provincial, local or international law or regulation.
 
 ## 2. Harm and Discrimination
 
