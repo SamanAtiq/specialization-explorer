@@ -14,6 +14,7 @@ s3_client = boto3.client("s3", region_name=REGION)
 
 
 def _response(event, status_code: int, body: dict):
+    """Build a standard API Gateway JSON response with CORS headers"""
     return {
         "statusCode": status_code,
         "headers": {
@@ -25,6 +26,7 @@ def _response(event, status_code: int, body: dict):
 
 
 def _get_user_id_by_email(connection, email: str) -> str | None:
+    """Look up the internal user ID for the admin email provided by the request"""
     with connection.cursor() as cursor:
         cursor.execute(
             """
@@ -40,6 +42,12 @@ def _get_user_id_by_email(connection, email: str) -> str | None:
 
 
 def _validate_file_pair(csv_file_name: str, metadata_file_name: str) -> str | None:
+    """
+    Validate that the uploaded files are a proper CSV + metadata JSON pair
+
+    The metadata file must end in .json and must exactly match:
+    <csv_file_name>.metadata.json
+    """
     if not csv_file_name.endswith(".csv"):
         return "csv_file_name must end with .csv"
 
@@ -57,10 +65,12 @@ def _validate_file_pair(csv_file_name: str, metadata_file_name: str) -> str | No
 
 
 def _assert_s3_object_exists(bucket: str, key: str):
+    """Verify that an uploaded file already exists in S3 before staging it"""
     s3_client.head_object(Bucket=bucket, Key=key)
 
 
 def _existing_website_row_id(connection, *, name: str) -> str | None:
+    """Check whether a website data source with the same URL already exists"""
     with connection.cursor() as cursor:
         cursor.execute(
             """
@@ -77,6 +87,7 @@ def _existing_website_row_id(connection, *, name: str) -> str | None:
 
 
 def _existing_file_row_id(connection, *, s3_bucket: str, s3_key: str) -> str | None:
+    """Check whether a staged file already exists by matching its S3 bucket and key"""
     with connection.cursor() as cursor:
         cursor.execute(
             """
@@ -102,6 +113,10 @@ def _insert_data_source_row(
     include_patterns: list[str] | None = None,
     exclude_patterns: list[str] | None = None,
 ) -> str:
+    """
+    Insert a new row into data_sources
+    This stores the staged source itself, but does not start ingestion
+    """
     with connection.cursor() as cursor:
         cursor.execute(
             """
@@ -136,6 +151,11 @@ def _insert_ingestion_run_row(
     status: str,
     metadata: dict | None = None,
 ) -> str:
+    """
+    Insert an initial ingestion_runs row for a staged source
+    New staged sources start in 'pending' so they can later be promoted to
+    'queued' when the admin clicks Sync
+    """
     with connection.cursor() as cursor:
         cursor.execute(
             """
@@ -159,6 +179,19 @@ def _insert_ingestion_run_row(
 
 
 def stage_data_sources(event, body, connection):
+    """
+    Stage either a website or a CSV/JSON pair for future syncing
+
+    This method:
+    - validates the request
+    - inserts the appropriate data_sources row(s)
+    - creates matching ingestion_runs row(s) with status 'pending'
+    - does NOT start ingestion or create schedulers
+
+    Supported request types:
+    - type = "website"
+    - type = "csv"
+    """
     source_type = body.get("type")
     created_by = body.get("created_by")
 
