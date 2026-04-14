@@ -5,8 +5,8 @@ import boto3
 import logging
 import psycopg2
 
-from helpers.add_website import add_website
-from helpers.add_csv import add_csv
+from helpers.process_website_batch import add_website
+from helpers.process_s3_batch import add_csv
 from helpers.generate_presigned_url import generate_presigned_url
 from helpers.update_status import update_status
 
