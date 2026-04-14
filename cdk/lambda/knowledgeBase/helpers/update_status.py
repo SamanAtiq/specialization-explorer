@@ -38,6 +38,22 @@ def _normalize_status(bedrock_status: str | None) -> str | None:
         return "running"
     return None
 
+def _looks_like_capacity_failure(failure_reasons: list[str]) -> bool:
+    combined = " ".join(failure_reasons).lower()
+    keywords = [
+        "maxpages",
+        "max pages",
+        "25,000",
+        "25000",
+        "page limit",
+        "crawl limit",
+        "exceeded",
+        "too many pages",
+        "max capacity",
+        "capacity reached",
+    ]
+    return any(k in combined for k in keywords)
+
 def _update_ingestion_runs(connection, *, ingestion_run_ids: list[str], status: str, error_message: str | None):
     with connection.cursor() as cursor:
         if status in {"completed", "failed"}:
@@ -65,6 +81,67 @@ def _update_ingestion_runs(connection, *, ingestion_run_ids: list[str], status: 
             )
 
         return cursor.rowcount
+
+def _get_run_rows(connection, *, ingestion_run_ids: list[str]) -> list[dict]:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT id, data_source_id, status, metadata
+            FROM ingestion_runs
+            WHERE id = ANY(%s::uuid[])
+            ORDER BY created_at ASC, id ASC
+            """,
+            (ingestion_run_ids,),
+        )
+        rows = cursor.fetchall()
+
+        results = []
+        for row in rows:
+            results.append(
+                {
+                    "id": str(row[0]),
+                    "data_source_id": str(row[1]),
+                    "status": row[2],
+                    "metadata": row[3] or {},
+                }
+            )
+        return results
+
+
+def _insert_retry_ingestion_run(
+    connection,
+    *,
+    data_source_id: str,
+    sync_session_id: str,
+    retry_of_ingestion_run_id: str,
+) -> str:
+    metadata = {
+        "phase": "website",
+        "sync_session_id": sync_session_id,
+        "retry_of_ingestion_run_id": retry_of_ingestion_run_id,
+        "action": "retry_after_capacity_failure",
+    }
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            INSERT INTO ingestion_runs (
+                data_source_id,
+                status,
+                error_message,
+                metadata
+            )
+            VALUES (%s::uuid, 'queued'::ingestion_status, NULL, %s::jsonb)
+            RETURNING id
+            """,
+            (
+                data_source_id,
+                json.dumps(metadata),
+            ),
+        )
+        row = cursor.fetchone()
+        return str(row[0])
+
 
 def _delete_schedule(schedule_name: str):
     scheduler_client.delete_schedule(
@@ -162,6 +239,9 @@ def update_status(event, connection):
 
     error_message = "; ".join(failure_reasons) if failure_reasons else None
 
+    retry_created_run_ids = []
+    next_step = None
+
     try:
         rows_updated = _update_ingestion_runs(
             connection,
@@ -169,6 +249,27 @@ def update_status(event, connection):
             status=normalized_status,
             error_message=error_message,
         )
+
+        # Retry logic:
+        # if a single-website batch failed due to capacity, preserve the failed run
+        # and create a brand new queued retry run for the same website
+        if (
+            phase == "website"
+            and normalized_status == "failed"
+            and len(db_ingestion_run_ids) == 1
+            and _looks_like_capacity_failure(failure_reasons)
+        ):
+            run_rows = _get_run_rows(connection, ingestion_run_ids=db_ingestion_run_ids)
+            if run_rows:
+                failed_run = run_rows[0]
+                retry_run_id = _insert_retry_ingestion_run(
+                    connection,
+                    data_source_id=failed_run["data_source_id"],
+                    sync_session_id=sync_session_id,
+                    retry_of_ingestion_run_id=failed_run["id"],
+                )
+                retry_created_run_ids.append(retry_run_id)
+
         connection.commit()
     except Exception:
         connection.rollback()
@@ -179,10 +280,8 @@ def update_status(event, connection):
     except Exception as e:
         logger.error("Failed to delete schedule %s: %s", schedule_name, e, exc_info=True)
 
-    next_step = None
-
-    if normalized_status == "completed":
-        try:
+    try:
+        if normalized_status == "completed":
             if phase == "s3":
                 next_step = process_website_batch(
                     event=event,
@@ -199,18 +298,34 @@ def update_status(event, connection):
                     sync_session_id=sync_session_id,
                     triggered_by_scheduler=True,
                 )
-        except Exception as e:
-            logger.error(
-                "Failed to continue sync session %s after phase %s: %s",
-                sync_session_id,
-                phase,
-                e,
-                exc_info=True,
+
+        elif (
+            phase == "website"
+            and normalized_status == "failed"
+            and len(db_ingestion_run_ids) == 1
+            and _looks_like_capacity_failure(failure_reasons)
+            and retry_created_run_ids
+        ):
+            next_step = process_website_batch(
+                event=event,
+                connection=connection,
+                kb_id=kb_id,
+                sync_session_id=sync_session_id,
+                triggered_by_scheduler=True,
             )
-            next_step = {
-                "started": False,
-                "error": str(e),
-            }
+
+    except Exception as e:
+        logger.error(
+            "Failed to continue sync session %s after phase %s: %s",
+            sync_session_id,
+            phase,
+            e,
+            exc_info=True,
+        )
+        next_step = {
+            "started": False,
+            "error": str(e),
+        }
 
     return _response(
         event,
@@ -223,6 +338,7 @@ def update_status(event, connection):
             "bedrock_ingestion_job_id": bedrock_ingestion_job_id,
             "status": normalized_status,
             "rows_updated": rows_updated,
+            "retry_created_run_ids": retry_created_run_ids,
             "next_step": next_step,
         },
     )
