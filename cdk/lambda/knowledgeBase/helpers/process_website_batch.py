@@ -28,6 +28,7 @@ bedrock_agent = boto3.client("bedrock-agent", region_name=REGION)
 scheduler_client = boto3.client("scheduler", region_name=REGION)
 
 def _response(event, status_code: int, body: dict):
+    """Build a standard API Gateway JSON response with CORS headers"""
     return {
         "statusCode": status_code,
         "headers": {
@@ -39,6 +40,10 @@ def _response(event, status_code: int, body: dict):
 
 
 def _list_all_data_sources(knowledge_base_id: str) -> list[dict]:
+    """
+    Fetch every Bedrock data source attached to the knowledge base.
+    Pagination is handled so the caller always receives the full list.
+    """
     items = []
     next_token = None
 
@@ -61,6 +66,7 @@ def _list_all_data_sources(knowledge_base_id: str) -> list[dict]:
 
 
 def _get_data_source(knowledge_base_id: str, data_source_id: str) -> dict:
+    """Fetch the full Bedrock configuration for a specific data source"""
     resp = bedrock_agent.get_data_source(
         knowledgeBaseId=knowledge_base_id,
         dataSourceId=data_source_id,
@@ -69,6 +75,10 @@ def _get_data_source(knowledge_base_id: str, data_source_id: str) -> dict:
 
 
 def _list_all_ingestion_jobs(knowledge_base_id: str, data_source_id: str) -> list[dict]:
+    """
+    Fetch all ingestion job summaries for a Bedrock data source.
+    Pagination is handled so capacity decisions can be based on the full job history.
+    """
     items = []
     next_token = None
 
@@ -92,6 +102,7 @@ def _list_all_ingestion_jobs(knowledge_base_id: str, data_source_id: str) -> lis
 
 
 def _sort_jobs_latest_first(jobs: list[dict]) -> list[dict]:
+    """Sort ingestion jobs by most recent update/start/create timestamp first"""
     return sorted(
         jobs,
         key=lambda j: j.get("updatedAt") or j.get("startedAt") or j.get("createdAt"),
@@ -100,6 +111,7 @@ def _sort_jobs_latest_first(jobs: list[dict]) -> list[dict]:
 
 
 def _get_latest_ingestion_job(knowledge_base_id: str, data_source_id: str) -> dict | None:
+    """Return the most recent ingestion job for a Bedrock data source, if one exists"""
     jobs = _list_all_ingestion_jobs(knowledge_base_id, data_source_id)
     if not jobs:
         return None
@@ -107,10 +119,12 @@ def _get_latest_ingestion_job(knowledge_base_id: str, data_source_id: str) -> di
 
 
 def _is_web_data_source(data_source: dict) -> bool:
+    """Return True when the Bedrock data source is configured as a web crawler"""
     return data_source.get("dataSourceConfiguration", {}).get("type") == "WEB"
 
 
 def _get_seed_urls(data_source: dict) -> list[str]:
+    """Extract the current list of seed URLs from a Bedrock web crawler data source"""
     seed_url_objs = (
         data_source.get("dataSourceConfiguration", {})
         .get("webConfiguration", {})
@@ -122,6 +136,7 @@ def _get_seed_urls(data_source: dict) -> list[str]:
 
 
 def _get_max_pages(data_source: dict) -> int:
+    """Read the crawler maxPages limit from the Bedrock web crawler configuration"""
     return (
         data_source.get("dataSourceConfiguration", {})
         .get("webConfiguration", {})
@@ -132,12 +147,17 @@ def _get_max_pages(data_source: dict) -> int:
 
 
 def _latest_failure_reasons(latest_job: dict | None) -> list[str]:
+    """Extract the failure reasons from the latest Bedrock ingestion job, if present"""
     if not latest_job:
         return []
     return latest_job.get("failureReasons", []) or []
 
 
 def _looks_like_capacity_failure(failure_reasons: list[str]) -> bool:
+    """
+    Detect whether a Bedrock job failure looks like a page-capacity/max-pages failure.
+    This is used to treat a crawler as full and avoid selecting it again.
+    """
     combined = " ".join(failure_reasons).lower()
     keywords = [
         "maxpages",
@@ -155,6 +175,7 @@ def _looks_like_capacity_failure(failure_reasons: list[str]) -> bool:
 
 
 def _get_documents_scanned(latest_job: dict | None) -> int:
+    """Extract the number of documents/pages scanned from the latest Bedrock job"""
     if not latest_job:
         return 0
     stats = latest_job.get("statistics", {}) or {}
@@ -162,6 +183,15 @@ def _get_documents_scanned(latest_job: dict | None) -> int:
 
 
 def _classify_data_source(data_source: dict, latest_job: dict | None) -> dict:
+    """
+    Classify a web crawler as available, syncing, or full.
+
+    A crawler is treated as full when:
+    - its latest job failed with a capacity-like error, or
+    - its scanned page count has reached maxPages
+
+    Otherwise it remains available unless a sync is currently in progress.
+    """
     data_source_id = data_source["dataSourceId"]
     seed_urls = _get_seed_urls(data_source)
     max_pages = _get_max_pages(data_source)
@@ -195,15 +225,24 @@ def _classify_data_source(data_source: dict, latest_job: dict | None) -> dict:
 
 
 def _select_best_available(classified: list[dict]) -> dict | None:
+    """
+    Choose the best available web crawler for the next batch.
+    Preference is given to the crawler with the most remaining pages.
+    """
     candidates = [x for x in classified if x["state"] == "available"]
     if not candidates:
         return None
 
-    # prefer the crawler with the most remaining pages
     return sorted(candidates, key=lambda x: x["remaining_pages"], reverse=True)[0]
 
 
 def _latest_run_rows_by_status(connection, *, status: str, data_source_type: str) -> list[dict]:
+    """
+    Return the latest ingestion run per website data source filtered by status.
+
+    For the website phase this is used to collect the currently queued website
+    sources that are waiting to be assigned to a crawler batch.
+    """
     with connection.cursor() as cursor:
         cursor.execute(
             """
@@ -256,6 +295,12 @@ def _latest_run_rows_by_status(connection, *, status: str, data_source_type: str
 
 
 def _group_key_for_website_run(run: dict) -> str:
+    """
+    Build a grouping key for websites based on include/exclude patterns.
+
+    Websites are only batched together when they share the same crawler-level
+    filter configuration.
+    """
     return json.dumps(
         {
             "include_patterns": run["include_patterns"] or [],
@@ -266,6 +311,12 @@ def _group_key_for_website_run(run: dict) -> str:
 
 
 def _next_queued_website_batch(connection, batch_size: int) -> list[dict]:
+    """
+    Select the next queued website batch, constrained by filter compatibility.
+
+    The batch starts from the oldest queued website and only includes additional
+    queued websites that share the same include/exclude patterns.
+    """
     queued_websites = _latest_run_rows_by_status(
         connection,
         status="queued",
@@ -288,6 +339,11 @@ def _next_queued_website_batch(connection, batch_size: int) -> list[dict]:
 
 
 def _build_updated_web_config(data_source: dict, new_urls: list[str], include_patterns: list[str], exclude_patterns: list[str]) -> dict:
+    """
+    Build an updated Bedrock web crawler configuration for an existing crawler.
+
+    This appends new seed URLs and applies the effective include/exclude filters.
+    """
     config = data_source["dataSourceConfiguration"]
     web_config = config["webConfiguration"]
     crawler_config = web_config["crawlerConfiguration"]
@@ -302,7 +358,6 @@ def _build_updated_web_config(data_source: dict, new_urls: list[str], include_pa
 
     updated_crawler_config = dict(crawler_config)
 
-    # only include filters when non-empty
     effective_includes = include_patterns if include_patterns else crawler_config.get("inclusionFilters")
     effective_excludes = exclude_patterns if exclude_patterns else crawler_config.get("exclusionFilters")
 
@@ -339,6 +394,10 @@ def _build_updated_web_config(data_source: dict, new_urls: list[str], include_pa
 
 
 def _update_existing_web_data_source(data_source: dict, knowledge_base_id: str, new_urls: list[str], include_patterns: list[str], exclude_patterns: list[str]) -> dict:
+    """
+    Update an existing Bedrock web crawler with new URLs and effective filters.
+    This is used when an available crawler still has room for more websites.
+    """
     updated_data_source_config = _build_updated_web_config(
         data_source=data_source,
         new_urls=new_urls,
@@ -374,6 +433,12 @@ def _update_existing_web_data_source(data_source: dict, knowledge_base_id: str, 
 
 
 def _build_new_web_data_source_payload(template_data_source: dict, new_urls: list[str], include_patterns: list[str], exclude_patterns: list[str]) -> dict:
+    """
+    Build the payload for a brand new Bedrock web crawler data source.
+
+    The new crawler inherits the template crawler configuration and applies
+    the website batch's effective seed URLs and filters.
+    """
     template_config = template_data_source["dataSourceConfiguration"]
     template_web = template_config["webConfiguration"]
     template_crawler = template_web["crawlerConfiguration"]
@@ -417,6 +482,10 @@ def _build_new_web_data_source_payload(template_data_source: dict, new_urls: lis
 
 
 def _create_new_web_data_source(template_data_source: dict, knowledge_base_id: str, new_urls: list[str], include_patterns: list[str], exclude_patterns: list[str]) -> dict:
+    """
+    Create a brand new Bedrock web crawler data source from an existing template.
+    This is used when no existing crawler can safely accept the next website batch.
+    """
     payload = _build_new_web_data_source_payload(
         template_data_source=template_data_source,
         new_urls=new_urls,
@@ -435,6 +504,10 @@ def _create_new_web_data_source(template_data_source: dict, knowledge_base_id: s
 
 
 def _start_ingestion(knowledge_base_id: str, data_source_id: str) -> dict:
+    """
+    Start a Bedrock ingestion job for the selected web crawler data source.
+    This kicks off crawling and ingestion for the chosen website batch.
+    """
     resp = bedrock_agent.start_ingestion_job(
         knowledgeBaseId=knowledge_base_id,
         dataSourceId=data_source_id,
@@ -451,6 +524,12 @@ def _create_ingestion_polling_schedule(
     db_ingestion_run_ids: list[str],
     sync_session_id: str,
 ) -> str:
+    """
+    Create the 30-minute scheduler that polls the website ingestion job.
+
+    The scheduler payload carries the sync session ID and the database run IDs
+    so update_status can later update all affected website runs together.
+    """
     schedule_name = f"kb-web-{sync_session_id}-{uuid4().hex[:8]}"
 
     payload = {
@@ -489,6 +568,12 @@ def _mark_runs_running(
     sync_session_id: str,
     schedule_name: str,
 ):
+    """
+    Mark the selected website ingestion runs as running.
+
+    The metadata is updated with the current sync session, Bedrock ingestion
+    job ID, scheduler name, and phase so later polling can resume correctly.
+    """
     with connection.cursor() as cursor:
         cursor.execute(
             """
@@ -513,6 +598,25 @@ def _mark_runs_running(
 
 
 def process_website_batch(event, connection, kb_id, sync_session_id: str, triggered_by_scheduler: bool = False):
+    """
+    Start the website phase for the current sync session.
+
+    This method:
+    - fetches all Bedrock web crawlers in the knowledge base
+    - classifies them by availability and remaining page capacity
+    - picks the best available crawler, if one exists
+    - decides batch size:
+      - 1 when the crawler is near the low remaining-pages threshold
+      - otherwise up to 5
+    - selects the next queued website batch with compatible filters
+    - updates an existing crawler or creates a new one
+    - starts the Bedrock ingestion job
+    - creates the 30-minute polling scheduler
+    - marks the selected database runs as running
+
+    It returns a structured result describing whether the phase started and
+    which run IDs and URLs were attached to it.
+    """
     all_data_sources = _list_all_data_sources(kb_id)
 
     web_crawlers = []
