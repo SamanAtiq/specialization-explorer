@@ -17,6 +17,7 @@ scheduler_client = boto3.client("scheduler", region_name=REGION)
 
 
 def _response(event, status_code: int, body: dict):
+    """Build a standard API Gateway JSON response with CORS headers"""
     return {
         "statusCode": status_code,
         "headers": {
@@ -28,6 +29,10 @@ def _response(event, status_code: int, body: dict):
 
 
 def _list_all_data_sources(knowledge_base_id: str) -> list[dict]:
+    """
+    Fetch every Bedrock data source attached to the knowledge base.
+    Pagination is handled so the caller always receives the full list.
+    """
     items = []
     next_token = None
 
@@ -50,6 +55,7 @@ def _list_all_data_sources(knowledge_base_id: str) -> list[dict]:
 
 
 def _get_data_source(knowledge_base_id: str, data_source_id: str) -> dict:
+    """Fetch the full Bedrock configuration for a specific data source"""
     resp = bedrock_agent.get_data_source(
         knowledgeBaseId=knowledge_base_id,
         dataSourceId=data_source_id,
@@ -58,10 +64,17 @@ def _get_data_source(knowledge_base_id: str, data_source_id: str) -> dict:
 
 
 def _is_s3_data_source(data_source: dict) -> bool:
+    """Return True when the Bedrock data source is configured as S3"""
     return data_source.get("dataSourceConfiguration", {}).get("type") == "S3"
 
 
 def _latest_run_rows_by_status(connection, *, status: str, data_source_types: list[str]) -> list[dict]:
+    """
+    Return the latest ingestion run per data source filtered by status and type.
+
+    For the S3 phase, this is used to collect the currently queued CSV and JSON
+    sources that should be included in the next ingestion run.
+    """
     with connection.cursor() as cursor:
         cursor.execute(
             """
@@ -110,6 +123,10 @@ def _latest_run_rows_by_status(connection, *, status: str, data_source_types: li
 
 
 def _get_single_s3_data_source(knowledge_base_id: str) -> dict | None:
+    """
+    Locate the single shared S3 Bedrock data source for the knowledge base.
+    The S3 ingestion model assumes exactly one S3 data source is available.
+    """
     all_data_sources = _list_all_data_sources(knowledge_base_id)
 
     s3_data_sources = []
@@ -125,6 +142,12 @@ def _get_single_s3_data_source(knowledge_base_id: str) -> dict | None:
 
 
 def _start_ingestion(knowledge_base_id: str, data_source_id: str) -> dict:
+    """
+    Start a Bedrock ingestion job for the shared S3 data source.
+
+    This kicks off ingestion for all queued CSV and JSON sources staged for
+    the current sync session.
+    """
     resp = bedrock_agent.start_ingestion_job(
         knowledgeBaseId=knowledge_base_id,
         dataSourceId=data_source_id,
@@ -141,6 +164,12 @@ def _create_ingestion_polling_schedule(
     db_ingestion_run_ids: list[str],
     sync_session_id: str,
 ) -> str:
+    """
+    Create the 5-minute scheduler that polls the S3 ingestion job.
+
+    The scheduler payload carries the sync session ID and the database run IDs
+    so update_status can later update all affected ingestion runs together.
+    """
     schedule_name = f"kb-s3-{sync_session_id}-{uuid4().hex[:8]}"
 
     payload = {
@@ -179,6 +208,12 @@ def _mark_runs_running(
     sync_session_id: str,
     schedule_name: str,
 ):
+    """
+    Mark the selected CSV and JSON ingestion runs as running.
+
+    The metadata is updated with the current sync session, Bedrock ingestion
+    job ID, scheduler name, and phase so later polling can resume correctly.
+    """
     with connection.cursor() as cursor:
         cursor.execute(
             """
@@ -203,6 +238,19 @@ def _mark_runs_running(
 
 
 def process_s3_batch(event, connection, kb_id, sync_session_id: str, triggered_by_scheduler: bool = False):
+    """
+    Start the S3 phase for the current sync session.
+
+    This method:
+    - finds the latest queued CSV and JSON ingestion runs
+    - locates the shared S3 Bedrock data source
+    - starts one Bedrock ingestion job for that shared data source
+    - creates the 5-minute polling scheduler
+    - marks all selected database runs as running
+
+    It returns a structured result describing whether the phase started and
+    which run IDs were attached to it.
+    """
     queued_runs = _latest_run_rows_by_status(
         connection,
         status="queued",
