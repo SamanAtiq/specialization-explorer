@@ -19,7 +19,7 @@ exports.up = (pgm) => {
     EXCEPTION WHEN duplicate_object THEN null; END $$;
 
     DO $$ BEGIN
-      CREATE TYPE ingestion_status AS ENUM ('running', 'failed', 'completed');
+      CREATE TYPE ingestion_status AS ENUM ('pending', 'queued', 'running', 'failed', 'completed');
     EXCEPTION WHEN duplicate_object THEN null; END $$;
 
     DO $$ BEGIN
