@@ -13,10 +13,9 @@ _CONFIG_LOADED = False
 # ------------------------------------------------------------------
 
 KB_ID = None
-MODEL_ARN = os.getenv(
-    "BEDROCK_MODEL_ID",
-    "us.anthropic.claude-sonnet-4-6"
-)
+
+HAIKU_ARN = None
+SONNET_ARN = None
 
 REGION = os.getenv("REGION", "ca-central-1")
 LLM_REGION = os.getenv("LLM_REGION", "us-west-2")
@@ -72,8 +71,9 @@ SPEC_PROMPT = f"""
 ONLY SUGGEST SPECIALIZATIONS FROM THIS LIST {",".join(SPEC_LIST)}
 """
 
+
 # ------------------------------------------------------------------
-# DYNAMIC LOADING
+# MODEL ARN CACHING (SSM)
 # ------------------------------------------------------------------
 
 def load_config(db_connection):
@@ -87,6 +87,7 @@ def load_config(db_connection):
     global KB_ID
     global SPEC_LIST
     global SPEC_PROMPT
+    global HAIKU_ARN, SONNET_ARN
 
     if _CONFIG_LOADED:
         return
@@ -103,6 +104,26 @@ def load_config(db_connection):
         except Exception as e:
             logger.error(f"Failed to load KB_ID from Secrets Manager: {e}")
             raise
+
+    if not HAIKU_ARN:
+        ssm_param = os.environ.get("HAIKU_ARN")
+        if not ssm_param:
+            raise RuntimeError("Missing environment variable for HAIKU_ARN")
+        ssm = boto3.client("ssm")
+        try:
+            HAIKU_ARN = ssm.get_parameter(Name=ssm_param)["Parameter"]["Value"]
+        except Exception as e:
+            raise RuntimeError(f"Failed to fetch SSM parameter {ssm_param}: {e}")
+
+    if not SONNET_ARN:
+        ssm_param = os.environ.get("SONNET_ARN")
+        if not ssm_param:
+            raise RuntimeError("Missing environment variable for SONNET_ARN")
+        ssm = boto3.client("ssm")
+        try:
+            SONNET_ARN = ssm.get_parameter(Name=ssm_param)["Parameter"]["Value"]
+        except Exception as e:
+            raise RuntimeError(f"Failed to fetch SSM parameter {ssm_param}: {e}")
 
     data = fetch_system_config(db_connection)
 

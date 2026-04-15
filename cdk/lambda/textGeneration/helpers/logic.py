@@ -19,7 +19,7 @@ def get_current_prompt(chat_session_id: str, db_connection) -> Tuple[str, int, s
         phase_name = "DETECTIVE"
     else:
         phase_instructions = config.SUGGESTION_PHASE_PROMPT
-        retrieval_count = 50
+        retrieval_count = 15
         phase_name = "SUGGESTION"
 
     full_prompt = f"""<role>

@@ -986,6 +986,33 @@ export class ApiGatewayStack extends cdk.Stack {
         },
       }
     )
+      // Grant SSM parameter access for HaikuArn and SonnetArn
+      lambdaTextGen.addToRolePolicy(
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: ["ssm:GetParameter", "ssm:GetParameters"],
+          resources: [
+            `arn:aws:ssm:${this.region}:${this.account}:parameter/SpecEx/LLM/HaikuArn`,
+            `arn:aws:ssm:${this.region}:${this.account}:parameter/SpecEx/LLM/SonnetArn`,
+          ],
+        })
+      );
+
+      // Add SSM parameter names as environment variables
+      lambdaTextGen.addEnvironment("HAIKU_ARN", "/SpecEx/LLM/HaikuArn");
+      lambdaTextGen.addEnvironment("SONNET_ARN", "/SpecEx/LLM/SonnetArn");
+
+
+    lambdaTextGen.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions:["ssm:GetParameter", "ssm:GetParameters"],
+        resources: [
+          `arn:aws:ssm:${this.region}:${this.account}:parameter/SpecEx/LLM/HaikuArn`,
+          `arn:aws:ssm:${this.region}:${this.account}:parameter/SpecEx/LLM/SonnetArn`,
+        ],
+      })
+    );
 
     // Override the Logical ID
     const cfnlambdaTextGen = lambdaTextGen.node
