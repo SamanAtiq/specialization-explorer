@@ -95,5 +95,36 @@ export class AmplifyStack extends cdk.Stack {
       amplifyApp.addBranch(branch);
     }
 
+    // -- UPDATE THE SSM PARAMETER TO POINT TO THE AMPLIFY APP URL --
+    const amplifyUrl = `https://${branch}.${amplifyApp.appId}.amplifyapp.com`;
+
+    new cdk.custom_resources.AwsCustomResource(this, 'UpdateSSMParameter', {
+      onCreate: {
+        service: 'SSM',
+        action: 'putParameter',
+        parameters: {
+          Name: '/SpecEx/API/AllowedOrigins',
+          Value: amplifyUrl,
+          Type: 'String',
+          Overwrite: true, // This allows the update
+        },
+        physicalResourceId: cdk.custom_resources.PhysicalResourceId.of('UpdateSSMParam'),
+      },
+      onUpdate: {
+        service: 'SSM',
+        action: 'putParameter',
+        parameters: {
+          Name: '/SpecEx/API/AllowedOrigins',
+          Value: amplifyUrl,
+          Type: 'String',
+          Overwrite: true,
+        },
+      },
+      policy: cdk.custom_resources.AwsCustomResourcePolicy.fromSdkCalls({
+        resources: [
+          `arn:aws:ssm:${this.region}:${this.account}:parameter/SpecEx/API/AllowedOrigins`,
+        ],
+      }),
+    });
   }
 }
