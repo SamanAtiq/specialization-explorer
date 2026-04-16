@@ -53,8 +53,6 @@ Output ONLY the search query. Do not include explanations, preambles, or quotes.
 """
 
     try:
-        if haiku_model_arn is None:
-            haiku_model_arn = config.get_model_arn("HAIKU_ARN")
         bedrock_runtime = boto3.client("bedrock-runtime", region_name=llm_region)
         response = bedrock_runtime.converse(
             modelId=haiku_model_arn,
@@ -118,7 +116,7 @@ def _prepare_conversation(
         raise
 
     # 4. Determine Phase & Prompt
-    current_system_prompt, num_retrieval_results, phase_name = get_current_prompt(
+    current_system_prompt, num_retrieval_results, phase_name, model_arn = get_current_prompt(
         chat_session_id,
         db_connection
     )
@@ -127,7 +125,8 @@ def _prepare_conversation(
     search_query = _rewrite_query_for_retrieval(
         raw_query=query,
         chat_history=raw_history,
-        llm_region=llm_region
+        llm_region=llm_region,
+        haiku_model_arn=config.HAIKU_ARN
     )
 
     # 6. RAG Retrieval (using rewritten query)
@@ -175,7 +174,7 @@ After your answer, you MUST list the integer indices of the sources you actively
         "content": [{"text": query}]
     })
 
-    return bedrock_messages, full_system_prompt, sources, phase_name
+    return bedrock_messages, full_system_prompt, sources, phase_name, model_arn
 
 def _save_ai_response(
     db_connection,
@@ -209,7 +208,6 @@ def _save_ai_response(
 def get_response(
     query: str,
     knowledge_base_id: str,
-    model_arn: str,
     region: str,
     llm_region: str,
     chat_session_id: str,
@@ -237,7 +235,7 @@ def get_response(
                     "intervention": None
                 }
 
-        bedrock_messages, full_system_prompt, sources, phase_name = _prepare_conversation(
+        bedrock_messages, full_system_prompt, sources, phase_name, model_arn = _prepare_conversation(
             query,
             knowledge_base_id,
             region,
@@ -264,18 +262,20 @@ def get_response(
         }
 
     request_payload = {
-        "modelId": model_arn,
-        "messages": bedrock_messages,
-        "system": [{"text": full_system_prompt}],
-        "inferenceConfig": {
-            "maxTokens": config.MAX_TOKENS,
-            "temperature": config.TEMPERATURE
-        },
-        "additionalModelRequestFields": {
-            "thinking": {"type": "disabled"},
-            "output_config": {"effort": "low"}
+            "modelId": model_arn,
+            "messages": bedrock_messages,
+            "system": [{"text": full_system_prompt}],
+            "inferenceConfig": {
+                "maxTokens": config.MAX_TOKENS,
+                "temperature": config.TEMPERATURE
+            }
         }
-    }
+    
+    if model_arn == config.SONNET_ARN:
+        request_payload["additionalModelRequestFields"] = {
+                "thinking": {"type": "disabled"},
+                "output_config": {"effort": "low"}
+            }
 
     bedrock_runtime = boto3.client("bedrock-runtime", region_name=llm_region)
     

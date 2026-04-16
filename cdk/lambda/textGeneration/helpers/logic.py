@@ -17,11 +17,12 @@ def get_current_prompt(chat_session_id: str, db_connection) -> Tuple[str, int, s
         phase_instructions = config.DETECTIVE_PHASE_PROMPT
         retrieval_count = 5
         phase_name = "DETECTIVE"
+        model_arn = config.HAIKU_ARN
     else:
         phase_instructions = config.SUGGESTION_PHASE_PROMPT
         retrieval_count = 15
         phase_name = "SUGGESTION"
-
+        model_arn = config.SONNET_ARN
     full_prompt = f"""<role>
 {config.ROLE}
 </role>
@@ -47,4 +48,4 @@ def get_current_prompt(chat_session_id: str, db_connection) -> Tuple[str, int, s
 </guardrails>
 """.strip()
 
-    return full_prompt, retrieval_count, phase_name
+    return full_prompt, retrieval_count, phase_name, model_arn
