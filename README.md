@@ -171,7 +171,7 @@ Please refer to the [Web App User Guide](Docs/USER_GUIDE.md) for instructions on
    - `DATABASE_MIGRATIONS.md` : Explanation on how to modify the database.
    - `DEPENDENCY_MANAGEMENT.md` : Documentation on how python dependencies are locked and managed.
    - `MODIFICATION_GUIDE.md` : Documentation on how to modify components of the frontend such as colours, text and licensing information.
-   - `API_DOCUMENTATION.pdf` : Documentation of all API endpoints
+   - `API_DOCUMENTATION.md` : Documentation of all API endpoints
 3. `/frontend`: Contains the React + TypeScript user interface
    - `/src/assets`: Static assets (images, icons, etc.)
    - `/src/components`: Reusable UI components
@@ -275,7 +275,7 @@ For more detailed information about specific aspects of the Specialization Explo
 
 ### API & Usage
 
-- **[API Documentation](Docs/API_DOCUMENTATION.pdf)**: Comprehensive API reference for all REST and WebSocket endpoints
+- **[API Documentation](Docs/API_DOCUMENTATION.md)**: Comprehensive API reference for all REST and WebSocket endpoints
 - **[User Guide](Docs/USER_GUIDE.md)**: Complete guide for end-users on how to interact with Specialization Explorer
 
 ## Credits
