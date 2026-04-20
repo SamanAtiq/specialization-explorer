@@ -6,158 +6,150 @@ This document explains how Python dependencies are locked and managed across Lam
 
 ## Lambda Functions with Locked Dependencies
 
-The following Lambda functions have their dependencies locked using pip-tools:
+Only the `vectorIndexManagerSigV4` function uses locked dependencies via pip-tools. It is the only Lambda deployed as a Docker image built by CodePipeline, so exact version pinning is critical for reproducible builds.
 
-| Lambda Function    | Location                       | Requirements File  |
-| ------------------ | ------------------------------ | ------------------ |
-| `textGeneration`   | `cdk/lambda/textGeneration/`   | `requirements.txt` |
-| `practiceMaterial` | `cdk/lambda/practiceMaterial/` | `requirements.txt` |
+The `textGeneration` Lambda uses a minimal `requirements.txt` directly (no locking needed) because its heavier dependencies (`psycopg2`, `aws-lambda-powertools`) are provided via Lambda Layers rather than bundled into the function package.
+
+| Lambda Function           | Location                                  | Approach                        |
+| ------------------------- | ----------------------------------------- | ------------------------------- |
+| `vectorIndexManagerSigV4` | `cdk/lambda/vectorIndexManagerSigV4/`     | Locked via pip-tools (Docker)   |
+| `textGeneration`          | `cdk/lambda/textGeneration/`              | Minimal `requirements.txt` only |
 
 ## How Dependencies Were Locked
 
 ### 1. Requirements Structure
 
-Each Lambda function uses a two-file approach:
+The `vectorIndexManagerSigV4` function uses a two-file approach:
 
-- `requirements.in` - Contains high-level dependencies (what we directly need)
-- `requirements.txt` - Contains all dependencies with exact versions (generated from requirements.in)
+- `requirements.in` — High-level direct dependencies
+- `requirements.txt` — All dependencies with exact pinned versions (generated from `requirements.in`)
 
-### 2. Locking Process
+### 2. Current Direct Dependencies (`requirements.in`)
 
-Dependencies were locked using pip-tools within locally built Docker containers to ensure consistency.
+```
+opensearch-py>=2.8.0
+requests-aws4auth>=1.3.1
+boto3>=1.35.0
+```
 
-Steps:
+### 3. Locking Process
+
+Dependencies are locked using pip-tools inside a locally built Docker container matching the Lambda runtime (`public.ecr.aws/lambda/python:3.12`).
 
 ```bash
-# Navigate to the Lambda function directory (example: textGeneration)
-cd cdk/lambda/textGeneration
+# Navigate to the function directory
+cd cdk/lambda/vectorIndexManagerSigV4
 
 # Build the Docker image
-docker build -t textgeneration-img .
+docker build -t vectorindexmanager-img .
 
-# Run pip-tools inside the container
-docker run --rm -v ${PWD}:/app -w /app --entrypoint="" textgeneration-img bash -c "
+# Run pip-compile inside the container to generate requirements.txt
+docker run --rm -v ${PWD}:/app -w /app --entrypoint="" vectorindexmanager-img bash -c "
   pip install pip-tools &&
   pip-compile requirements.in
 "
 ```
 
-### 3. Key Locked Dependencies
+### 4. Key Locked Dependencies
 
-Example from the textGeneration Lambda function:
+The current `requirements.txt` pins the following (generated for Python 3.12):
 
-**AWS Services:**
-
-```
-boto3>=1.35.0
-botocore>=1.35.0
-```
-
-**LangChain & AI:**
-
-```
-langchain>=0.3.0
-langchain-aws>=0.2.0
-langchain-postgres>=0.0.12
-```
-
-**Database Connectivity:**
-
-```
-psycopg2-binary>=2.9.0
-psycopg[binary]>=3.1
-```
+| Package | Pinned Version | Purpose |
+|---|---|---|
+| `opensearch-py` | 2.8.0 | OpenSearch Serverless client |
+| `requests-aws4auth` | 1.3.1 | SigV4 request signing for AOSS |
+| `boto3` | 1.42.91 | AWS SDK |
+| `botocore` | 1.42.91 | AWS SDK core |
+| `requests` | 2.33.1 | HTTP client (transitive) |
+| `certifi` | 2026.2.25 | TLS certificates (transitive) |
+| `urllib3` | 2.6.3 | HTTP library (transitive) |
 
 ## How to Modify Dependencies
 
 ### Adding New Dependencies
 
-1. **Add to requirements.in:**
-   Add the new package to requirements.in. You may optionally specify a version (e.g., requests>=2.31.0 or just requests).
+1. **Add to `requirements.in`:**
 
-2. **Build Docker image locally:**
-   Open the Docker Desktop app and keep it running during this process.
-   In the terminal run the following commands in order to build the Docker image locally.
-
-   ```bash
-   # Navigate to the Lambda function directory (example: textGeneration)
-   cd cdk/lambda/textGeneration
-
-   # Build the Docker image locally
-   docker build -t textgeneration-img .
+   ```
+   # Example: add a new package
+   some-package>=1.0.0
    ```
 
-3. **Regenerate requirements.txt:**
-   Once the image has been built, run this command in the terminal to compile the requirements and regenerate the requirements.txt version:
+2. **Open Docker Desktop** and keep it running.
+
+3. **Build the Docker image:**
 
    ```bash
-   # Run pip-compile inside the built container
-   docker run --rm -v ${PWD}:/app -w /app textgeneration-img bash -c "
+   cd cdk/lambda/vectorIndexManagerSigV4
+   docker build -t vectorindexmanager-img .
+   ```
+
+4. **Regenerate `requirements.txt`:**
+
+   ```bash
+   docker run --rm -v ${PWD}:/app -w /app --entrypoint="" vectorindexmanager-img bash -c "
      pip install pip-tools &&
      pip-compile requirements.in
    "
    ```
 
-4. **Commit and Push Changes:**
-   After regenerating requirements.txt, commit and push the updated files to trigger the deployment pipeline.
+5. **Commit and push the changes:**
 
-   **Option 1: Using Git in the Terminal**
+   **Option 1: Terminal**
 
    ```bash
-   # Stage the updated files
    git add requirements.in requirements.txt
-
-   # Commit with a descriptive message
-   git commit -m "Add new dependency to textGeneration Lambda"
-
-   # Push to your working branch (e.g., main or dev)
+   git commit -m "Add new dependency to vectorIndexManagerSigV4"
    git push origin <branch-name>
    ```
 
-   **Option 2: Using Git in Your IDE (e.g., VS Code)**
+   **Option 2: VS Code Source Control**
 
    1. Go to the Source Control tab.
+   2. Stage `requirements.in` and `requirements.txt`.
+   3. Write a commit message and click ✓ Commit.
+   4. Click Push.
 
-   2. You'll see requirements.in and requirements.txt listed under Changes.
-
-   3. Write a commit message (e.g., "Add new dependency to textGeneration Lambda").
-
-   4. Click ✓ Commit.
-
-   5. Click the … menu or right-click → Push to send your changes to the remote repository.
-
-Once the push is complete, CodePipeline will automatically detect the change, rebuild the Docker image, and redeploy the Lambda function.
+Once pushed, CodePipeline detects the change, rebuilds the Docker image, and redeploys the Lambda.
 
 ### Updating Existing Dependencies
 
-1. **Update version in requirements.in:**
+1. **Update the version constraint in `requirements.in`:**
 
-   ```bash
-   # Change from: langchain>=0.3.0
-   # To: langchain>=0.3.5
+   ```
+   # Change from:
+   opensearch-py>=2.8.0
+   # To:
+   opensearch-py>=2.9.0
    ```
 
-2. **Build Docker image locally:**
-   Make sure to keep Docker Desktop running during this process.
+2. **Open Docker Desktop.**
+
+3. **Build the Docker image:**
 
    ```bash
-   # Navigate to the Lambda function directory (example: textGeneration)
-   cd cdk/lambda/textGeneration
-
-   # Build the Docker image locally
-   docker build -t textgeneration-img .
+   cd cdk/lambda/vectorIndexManagerSigV4
+   docker build -t vectorindexmanager-img .
    ```
 
-3. **Regenerate requirements.txt:**
+4. **Regenerate `requirements.txt`:**
 
    ```bash
-   # Run pip-compile inside the built container
-   docker run --rm -v ${PWD}:/app -w /app textgeneration-img bash -c "
+   docker run --rm -v ${PWD}:/app -w /app --entrypoint="" vectorindexmanager-img bash -c "
      pip install pip-tools &&
      pip-compile requirements.in
    "
    ```
 
-4. **Commit and Push Changes:**
+5. **Commit and push** the updated `requirements.in` and `requirements.txt` to trigger the CI/CD pipeline.
 
-Once `requirements.txt` has been updated, commit and push the changes to trigger the CI/CD pipeline and redeploy the updated Lambda function.
+## Notes on `textGeneration` Lambda
+
+The `textGeneration` Lambda does **not** use pip-tools locking. Its `requirements.txt` is minimal:
+
+```
+boto3>=1.35.0
+psycopg2-binary
+```
+
+`psycopg2` and `aws-lambda-powertools` are provided as Lambda Layers (see `cdk/layers/`) rather than bundled into the function package. If you need to add a new direct dependency to `textGeneration`, simply add it to its `requirements.txt` — no Docker build or pip-compile step is needed.
