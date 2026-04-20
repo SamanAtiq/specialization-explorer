@@ -10,7 +10,7 @@
   - [Create GitHub Personal Access Token](#create-github-personal-access-token)
 - [Deployment](#deployment)
   - [Step 1: Fork \& Clone The Repository](#step-1-fork--clone-the-repository)
-  - [Step 2: Upload Secrets](#step-2-upload-secrets)
+  - [Step 2: Upload Secrets \& Parameters](#step-2-upload-secrets--parameters)
   - [Step 3: CDK Deployment](#step-3-cdk-deployment)
 - [Post-Deployment](#post-deployment)
   - [Step 1: Build AWS Amplify App](#step-1-build-aws-amplify-app)
@@ -45,8 +45,9 @@ To request quota increases:
 1. Navigate to the **AWS Service Quotas** console in your AWS account
 2. Search for "Bedrock" in the service quotas
 3. Select the relevant LLM models you plan to use:
-   - Meta Llama 3 70B Instruct
-   - Cohere Embed V4
+   - Anthropic Claude Haiku 4.5 (`us.anthropic.claude-haiku-4-5-20251001-v1:0`)
+   - Anthropic Claude Sonnet 4.6 (`us.anthropic.claude-sonnet-4-6`)
+   - Cohere Embed V3
 4. Request quota increases for "Requests per minute" based on your expected usage
 5. Submit the quota increase request and wait for AWS approval (this can take 24-48 hours)
 
@@ -58,7 +59,7 @@ _Note: Consider your expected concurrent users and document processing volume wh
 
 To deploy this solution, you will need to generate a GitHub personal access token. Please visit [here](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#creating-a-fine-grained-personal-access-token) for detailed instruction to create a personal access token.
 
-_Note: Make sure to give access to only Specialization Explorer repository. Enable Read-only for Contents, and Metadata. For webhooks and Commit statuses enable read and write permissions._
+_Note: Make sure to give access to only the SpecEx repository. Enable Read-only for Contents, and Metadata. For webhooks and Commit statuses enable read and write permissions._
 
 **Once you create a token, please note down its value as you will use it later in the deployment process.**
 
@@ -112,7 +113,7 @@ Now that you are in the frontend directory, install the core dependencies with t
 npm install
 ```
 
-### Step 2: Upload Secrets
+### Step 2: Upload Secrets & Parameters
 
 You would have to supply your GitHub personal access token you created earlier when deploying the solution. Run the following command and ensure you replace `<YOUR-GITHUB-TOKEN>` and `<YOUR-PROFILE-NAME>` with your actual GitHub token and the appropriate AWS profile name.
 
@@ -154,7 +155,7 @@ aws secretsmanager create-secret `
 
 &nbsp;
 
-Moreover, you will need to upload your GitHub username to Amazon SSM Parameter Store. You can do so by running the following command. Make sure you replace `<YOUR-GITHUB-USERNAME>` and `<YOUR-PROFILE-NAME>` with your actual username and the appropriate AWS profile name.
+You will need to upload your GitHub username to Amazon SSM Parameter Store. Replace `<YOUR-GITHUB-USERNAME>` and `<YOUR-PROFILE-NAME>` accordingly.
 
 <details>
 <summary>macOS/Linux</summary>
@@ -246,7 +247,7 @@ aws secretsmanager create-secret \
   --profile <YOUR-PROFILE-NAME>
 ```
 
-Finally, in order to restrict user sign up to specific email domains, you will need to upload a comma separated list of allowed email domains to Amazon SSM Parameter Store. You can do so by running the following command. Make sure you replace `<YOUR-ALLOWED-EMAIL-DOMAIN-LIST>` and `<YOUR-PROFILE-NAME>` with your actual list and the appropriate AWS profile name.
+In order to restrict user sign up to specific email domains, upload a comma-separated list of allowed email domains to Amazon SSM Parameter Store. Replace `<YOUR-ALLOWED-EMAIL-DOMAIN-LIST>` and `<YOUR-PROFILE-NAME>` accordingly.
 
 <details>
 <summary>macOS/Linux</summary>
@@ -289,7 +290,7 @@ aws ssm put-parameter `
 
 &nbsp;
 
-For example, an email domain list we recommend is:
+For example:
 
 ```bash
 aws ssm put-parameter \
@@ -298,6 +299,160 @@ aws ssm put-parameter \
     --type SecureString \
     --profile <YOUR-PROFILE-NAME>
 ```
+
+The application uses two Claude models for text generation, referenced via SSM parameters. You must create both parameters before deploying.
+
+**Haiku model** (used for lightweight/fast responses):
+
+<details>
+<summary>macOS/Linux</summary>
+
+```bash
+aws ssm put-parameter \
+    --name "/SpecEx/LLM/HaikuArn" \
+    --value "us.anthropic.claude-haiku-4-5-20251001-v1:0" \
+    --type String \
+    --profile <YOUR-PROFILE-NAME>
+```
+
+</details>
+
+<details>
+<summary>Windows CMD</summary>
+
+```cmd
+aws ssm put-parameter ^
+    --name "/SpecEx/LLM/HaikuArn" ^
+    --value "us.anthropic.claude-haiku-4-5-20251001-v1:0" ^
+    --type String ^
+    --profile <YOUR-PROFILE-NAME>
+```
+
+</details>
+
+<details>
+<summary>PowerShell</summary>
+
+```powershell
+aws ssm put-parameter `
+    --name "/SpecEx/LLM/HaikuArn" `
+    --value "us.anthropic.claude-haiku-4-5-20251001-v1:0" `
+    --type String `
+    --profile <YOUR-PROFILE-NAME>
+```
+
+</details>
+
+&nbsp;
+
+**Sonnet model** (used for higher-quality responses):
+
+<details>
+<summary>macOS/Linux</summary>
+
+```bash
+aws ssm put-parameter \
+    --name "/SpecEx/LLM/SonnetArn" \
+    --value "us.anthropic.claude-sonnet-4-6" \
+    --type String \
+    --profile <YOUR-PROFILE-NAME>
+```
+
+</details>
+
+<details>
+<summary>Windows CMD</summary>
+
+```cmd
+aws ssm put-parameter ^
+    --name "/SpecEx/LLM/SonnetArn" ^
+    --value "us.anthropic.claude-sonnet-4-6" ^
+    --type String ^
+    --profile <YOUR-PROFILE-NAME>
+```
+
+</details>
+
+<details>
+<summary>PowerShell</summary>
+
+```powershell
+aws ssm put-parameter `
+    --name "/SpecEx/LLM/SonnetArn" `
+    --value "us.anthropic.claude-sonnet-4-6" `
+    --type String `
+    --profile <YOUR-PROFILE-NAME>
+```
+
+</details>
+
+&nbsp;
+
+**Web Crawler Seed URLs**
+
+This parameter must exist before running `cdk synth` or deployment will fail. If the SSM parameter is missing at synth time, CDK substitutes a dummy placeholder that causes the knowledge base provisioner to fail.
+
+For deployment purposes, you can use `https://example.com` as a placeholder — the web crawler data source will be created but won't crawl anything meaningful. You can update the actual URLs later through the admin dashboard once the app is deployed.
+
+_Note: URLs must start with `http://` or `https://` — the protocol is required by the Bedrock web crawler API._
+
+<details>
+<summary>macOS/Linux</summary>
+
+```bash
+aws ssm put-parameter \
+    --name "/SpecEx/KnowledgeBase/WebCrawlerUrls" \
+    --value "https://example.com" \
+    --type String \
+    --profile <YOUR-PROFILE-NAME>
+```
+
+</details>
+
+<details>
+<summary>Windows CMD</summary>
+
+```cmd
+aws ssm put-parameter ^
+    --name "/SpecEx/KnowledgeBase/WebCrawlerUrls" ^
+    --value "https://example.com" ^
+    --type String ^
+    --profile <YOUR-PROFILE-NAME>
+```
+
+</details>
+
+<details>
+<summary>PowerShell</summary>
+
+```powershell
+aws ssm put-parameter `
+    --name "/SpecEx/KnowledgeBase/WebCrawlerUrls" `
+    --value "https://example.com" `
+    --type String `
+    --profile <YOUR-PROFILE-NAME>
+```
+
+</details>
+
+&nbsp;
+
+The following SSM parameters are created automatically by the CDK deployment and do not need to be set manually:
+
+| Parameter | Description |
+|---|---|
+| `/SpecEx/API/AllowedOrigins` | Set automatically to the Amplify app URL during deployment |
+
+### Summary of All SSM Parameters
+
+| Parameter | Required | Set By | Description |
+|---|---|---|---|
+| `specEx-owner-name` | Yes | You (pre-deploy) | Your GitHub username |
+| `/SpecEx/AllowedEmailDomains` | Yes | You (pre-deploy) | Comma-separated list of allowed signup email domains |
+| `/SpecEx/LLM/HaikuArn` | Yes | You (pre-deploy) | Claude Haiku model ID for text generation |
+| `/SpecEx/LLM/SonnetArn` | Yes | You (pre-deploy) | Claude Sonnet model ID for text generation |
+| `/SpecEx/KnowledgeBase/WebCrawlerUrls` | Yes | You (pre-deploy) | Comma-separated URLs for the KB web crawler. Must exist before `cdk synth` or deployment will fail. |
+| `/SpecEx/API/AllowedOrigins` | — | CDK (auto) | Amplify app URL, set automatically during deployment |
 
 ### Step 3: CDK Deployment
 
@@ -312,8 +467,14 @@ Open a terminal in the `/cdk` directory.
 **Initialize the CDK stack** (required only if you have not deployed any resources with CDK in this region before). Please replace `<YOUR-PROFILE-NAME>` with the appropriate AWS profile used earlier.
 
 ```bash
-cdk synth --profile <YOUR-PROFILE-NAME> --context githubRepo=specialization-explorer
-cdk bootstrap aws://<YOUR_AWS_ACCOUNT_ID>/<YOUR_ACCOUNT_REGION> --profile <YOUR-PROFILE-NAME> --context githubRepo=specialization-explorer
+cdk synth \
+  --profile <YOUR-PROFILE-NAME> \
+  --context githubRepo=specialization-explorer
+
+cdk bootstrap \
+  aws://<YOUR_AWS_ACCOUNT_ID>/<YOUR_ACCOUNT_REGION> \
+  --profile <YOUR-PROFILE-NAME> \
+  --context githubRepo=specialization-explorer
 ```
 
 **Deploy CDK stack**
@@ -344,22 +505,57 @@ cdk deploy --all \
 
 **Note:** The deployment process may take 15-30 minutes to complete. You will be prompted to approve IAM changes and security group modifications during deployment.
 
+#### Stacks Deployed
+
+The CDK deployment creates the following stacks in dependency order:
+
+| Stack | Description |
+|---|---|
+| `<PREFIX>-VpcStack` | VPC, subnets, security groups, and VPC endpoints |
+| `<PREFIX>-Database` | RDS PostgreSQL instance and RDS Proxy |
+| `<PREFIX>-DBFlow` | Database migration Lambda and schema setup |
+| `<PREFIX>-CICD` | CodePipeline and ECR repositories for Docker image builds |
+| `<PREFIX>-KnowledgeBase` | Amazon Bedrock Knowledge Base, OpenSearch Serverless collection, and S3 data source bucket |
+| `<PREFIX>-Api` | API Gateway (REST + WebSocket), all Lambda functions, and Cognito User Pool |
+| `<PREFIX>-Amplify` | AWS Amplify app connected to your GitHub repository |
+
+### Authorize the GitHub Connection (Required After First Deploy)
+
+The CICD stack creates a GitHub connection via AWS CodeConnections to allow CodePipeline to pull source code. This connection must be **manually authorized** in the AWS Console before the pipeline can run — it will remain in a `PENDING` state until you do this.
+
+1. After CDK deployment completes, go to **AWS Console → Developer Tools → Settings → Connections** (or search "CodeConnections").
+2. Find the connection named `<STACK-PREFIX>-CICD-github-conn` with status `Pending`.
+3. Click on it, then click **Update pending connection**.
+4. Follow the prompts to authorize access to your GitHub account and the `specialization-explorer` repository.
+5. Once authorized, the connection status will change to `Available`.
+
+_Note: The CDK output `GitHubConnectionArn` shows the ARN of this connection for reference._
+
 ### CodePipeline & ECR Image Bootstrapping (First-Time Deployment)
 
-During the first-time deployment of the API stack, the deployment may fail because the required Docker images for Lambda functions have not yet been built and pushed to ECR. This happens because CodePipeline/CodeBuild is responsible for creating the ECR repositories and building the images, but these processes are not completed before the stack attempts to reference the images.
+The CICD stack builds and pushes the Docker image for the `vectorIndexManagerSigV4` Lambda to ECR via CodePipeline. The KnowledgeBase stack depends on this image being present before it can create the vector index manager Lambda.
 
-To resolve this issue, follow one of these approaches:
+**How it works automatically:**
 
-#### Manually Trigger the Pipeline Build (Recommended):
+The KnowledgeBase stack includes an `ecrImageWaiter` custom resource that:
+1. Checks ECR for the `latest` image tag on the `vectorIndexManagerSigV4` repository.
+2. If the image is not found, it **automatically triggers the CodePipeline** to start a build.
+3. It then polls ECR every 30 seconds for up to ~14 minutes waiting for the image to appear.
+4. Once the image is available, the KnowledgeBase stack deployment continues.
 
-1. Go to the AWS Console → CodePipeline → select your pipeline `<STACK-PREFIX>-pipeline` → click `Release change` or `Start pipeline`.
-2. Wait for the Pipeline to complete the build and push the required Docker images to ECR.
-3. Once the images are available, redeploy the API stack to ensure the Lambdas can reference the images.
+This means in most cases you do not need to manually trigger the pipeline — it is triggered automatically during deployment. However, the GitHub connection **must be authorized** (see above) before the pipeline can successfully pull source code and build the image.
+
+**If the KnowledgeBase stack times out waiting for the image:**
+
+1. Go to **AWS Console → CodePipeline** → select `<STACK-PREFIX>-CICD-DockerImagePipeline`.
+2. Check if the pipeline failed — a common cause is the GitHub connection not being authorized yet.
+3. Authorize the connection (see above), then click **Release change** to re-run the pipeline.
+4. Once the pipeline completes and the image is in ECR, redeploy: `cdk deploy <STACK-PREFIX>-KnowledgeBase --profile <YOUR-PROFILE-NAME>`.
 
 **Notes:**
 
 - Verify the ECR repository names and tags in the AWS Console or CDK outputs to ensure they match the expected values.
-- After the pipeline successfully completes and the images are pushed, the API stack should deploy successfully.
+- After the pipeline successfully completes and the images are pushed, the KnowledgeBase stack should deploy successfully.
 
 **Troubleshooting:**
 
@@ -413,7 +609,7 @@ You can now navigate to the web app URL (found in the Amplify console) to see yo
 **Issue: CloudFormation validation error during ResourceExistenceCheck referencing DataPipeline or CICD ARNs**
 
 - Symptoms: CloudFormation throws a validation error during the change set or deployment phase, related to a `ResourceExistenceCheck` for an ARN that appears to reference the `DataPipeline` or `CICD` resources.
-- Solution: This commonly occurs on first-time deployments when the pipeline and ECR resources are created by the deployment but are referenced in IAM policy statements before they exist. Follow the [CodePipeline & ECR Image Bootstrapping](#codepipeline--ecr-image-bootstrapping-first-time-deployment) steps to manually trigger the pipeline build and redeploy.
+- Solution: This commonly occurs on first-time deployments when the pipeline and ECR resources are created by the deployment but are referenced in IAM policy statements before they exist. Authorize the GitHub connection and follow the [CodePipeline & ECR Image Bootstrapping](#codepipeline--ecr-image-bootstrapping-first-time-deployment) steps to manually trigger the pipeline build and redeploy.
 
 **Issue: Amplify build fails**
 
@@ -440,12 +636,17 @@ You can now navigate to the web app URL (found in the Amplify console) to see yo
   - Lambda functions have correct permissions
   - Frontend is using the correct WebSocket URL
 
-**Issue: [ON FIRST RUN] Chatbot responds with "I'm experiencing technical difficulties and cannot process your request at this time"**
+**Issue: Text generation Lambda fails with parameter not found error**
+
+- Solution: Ensure the `/SpecEx/LLM/HaikuArn` and `/SpecEx/LLM/SonnetArn` SSM parameters were created before deployment. See [Step 2: Upload Secrets & Parameters](#step-2-upload-secrets--parameters).
+
+**Issue: Knowledge Base ingestion fails or returns no results**
 
 - Solution:
-  - Most likely, this is a guardrail issue. Double check the CloudWatch logs for the Text Generation Lambda function.
-  - Make sure the guardrail can be found. Even if it's created and shows status "Ready", make sure you create a versioned release from the working draft (eg: version 1) instead of using the DRAFT version.
-
+  - Verify the `<PREFIX>-KnowledgeBase` stack deployed successfully in CloudFormation.
+  - Check that the S3 bucket for the knowledge base exists and contains your source documents.
+  - If using web crawling, confirm the `/SpecEx/KnowledgeBase/WebCrawlerUrls` SSM parameter is set to valid, publicly accessible URLs.
+  - Trigger a manual ingestion job from the Bedrock console under Knowledge Bases.
 
 ## Cleanup
 
@@ -467,7 +668,7 @@ To take down the deployed stack for a fresh redeployment in the future, follow t
    - `<STACK-PREFIX>-Amplify`
    - `<STACK-PREFIX>-CICD`
    - `<STACK-PREFIX>-Api`
-   - `<STACK-PREFIX>-DataPipeline`
+   - `<STACK-PREFIX>-KnowledgeBase`
    - `<STACK-PREFIX>-DBFlow`
    - `<STACK-PREFIX>-Database`
    - `<STACK-PREFIX>-VpcStack`
@@ -484,13 +685,22 @@ To take down the deployed stack for a fresh redeployment in the future, follow t
    - Delete the following parameters:
      - `specEx-owner-name`
      - `/SpecEx/AllowedEmailDomains`
-     - Any other parameters created by the stack
+     - `/SpecEx/LLM/HaikuArn`
+     - `/SpecEx/LLM/SonnetArn`
+     - `/SpecEx/KnowledgeBase/WebCrawlerUrls`
+     - `/SpecEx/API/AllowedOrigins`
 
 5. **Delete ECR Repositories** (if any were created):
    - Navigate to Amazon ECR
-   - Delete repositories created by the stack
+   - Delete repositories created by the stack (e.g. `<STACK-PREFIX>-vectorindexmanagersigv4`)
 
-6. **Verify Cleanup**:
+6. **Delete Knowledge Base Resources** (if not removed by CloudFormation):
+   - Navigate to **Amazon Bedrock** → Knowledge Bases
+   - Delete the knowledge base created by the stack
+   - Navigate to **Amazon OpenSearch Serverless** → Collections
+   - Delete the collection created by the stack
+
+7. **Verify Cleanup**:
    - Check CloudWatch Logs for any remaining log groups
    - Check Lambda functions for any remaining functions
    - Check API Gateway for any remaining APIs
@@ -503,4 +713,5 @@ To take down the deployed stack for a fresh redeployment in the future, follow t
 - NAT Gateways
 - Elastic IPs
 - S3 storage
+- OpenSearch Serverless OCUs
 - CloudWatch Logs retention

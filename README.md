@@ -32,29 +32,59 @@ Please refer to the [Web App User Guide](Docs/USER_GUIDE.md) for instructions on
 ```
 ├── cdk/
 │   ├── bin/
+│   │   └── cdk.ts
 │   ├── lambda/
 │   │   ├── adminAuthorizerFunction/
+│   │   │   └── adminAuthorizerFunction.js
 │   │   ├── authorization/
-│   │   ├── config/
-│   │   ├── csvProcessor/
-│   │   ├── dataIngestion/
+│   │   │   ├── addAdminOnSignUp.js
+│   │   │   ├── initializeConnection.js
+│   │   │   ├── preSignUp.js
+│   │   │   └── userAuthorizerFunction.js
 │   │   ├── db_setup/
+│   │   │   ├── index.js
 │   │   │   └── migrations/
-│   │   ├── generatePresignedURL/
-│   │   ├── h5pExport/
+│   │   │       └── 000_initial_schema.js
+│   │   ├── ecrImageWaiter/
+│   │   │   ├── index.js
+│   │   │   ├── package.json
+│   │   │   └── README.md
 │   │   ├── handlers/
-│   │   ├── jobProcessor/
-│   │   ├── mediaJobProcessor/
-│   │   ├── practiceMaterial/
+│   │   │   ├── adminHandler.js
+│   │   │   ├── chatSessionHandler.js
+│   │   │   ├── initializeConnection.js
+│   │   │   ├── systemMessagesHandler.js
+│   │   │   ├── userHandler.js
+│   │   │   └── utils/
+│   │   │       └── cors.js
+│   │   ├── knowledgeBase/
+│   │   │   ├── main.py
+│   │   │   └── helpers/
+│   │   ├── knowledgeBaseProvisioner/
+│   │   │   └── main.py
 │   │   ├── publicTokenFunction/
+│   │   │   ├── cors.js
+│   │   │   └── publicTokenFunction.js
 │   │   ├── textGeneration/
+│   │   │   ├── main.py
+│   │   │   ├── requirements.txt
+│   │   │   └── helpers/
+│   │   ├── vectorIndexManagerSigV4/
+│   │   │   ├── Dockerfile
+│   │   │   ├── main.py
+│   │   │   └── requirements.txt
 │   │   └── websocket/
+│   │       ├── connect.js
+│   │       ├── default.js
+│   │       └── disconnect.js
+│   ├── layers/
 │   ├── lib/
 │   │   ├── amplify-stack.ts
 │   │   ├── api-stack.ts
 │   │   ├── cicd-stack.ts
 │   │   ├── database-stack.ts
 │   │   ├── dbFlow-stack.ts
+│   │   ├── knowledge-base-stack.ts
 │   │   └── vpc-stack.ts
 │   └── OpenAPI_Swagger_Definition.yaml
 
@@ -74,30 +104,38 @@ Please refer to the [Web App User Guide](Docs/USER_GUIDE.md) for instructions on
 │   └── src/
 │       ├── assets/
 │       ├── components/
-│       │   ├── Admin/
-│       │   ├── ChatInterface/
-│       │   ├── HomePage/
-│       │   ├── ui/
 │       │   ├── Footer.tsx
 │       │   ├── Header.tsx
-│       │   ├── HomePageHeader.tsx
-│       │   └── ProtectedRoute.tsx
-│       ├── contexts/
-│       ├── functions/
-│       ├── hooks/
-│       ├── layouts/
-│       ├── lib/
-│       ├── pages/
+│       │   ├── ProtectedRoute.tsx
 │       │   ├── Admin/
 │       │   ├── ChatInterface/
-│       │   ├── FAQ/
-│       │   ├── MaterialEditor/
-│       │   ├── PracticeMaterial/
+│       │   ├── ui/
+│       ├── functions/
+│       │   ├── apiCache.js
+│       │   ├── authService.d.ts
+│       │   └── authService.js
+│       ├── hooks/
+│       │   └── useWebSocket.ts
+│       ├── layouts/
+│       │   └── AppLayout.tsx
+│       ├── lib/
+│       │   └── utils.ts
+│       ├── pages/
 │       │   ├── HomePage.tsx
-│       │   └── UserGuidelines.tsx
+│       │   ├── UserGuidelines.tsx
+│       │   ├── Admin/
+│       │   ├── ChatInterface/
 │       ├── providers/
+│       │   ├── mode.ts
+│       │   ├── ModeProvider.tsx
+│       │   ├── sidebar.ts
+│       │   ├── SidebarContext.tsx
+│       │   ├── user.ts
+│       │   ├── UserContext.tsx
+│       │   ├── view.ts
+│       │   └── ViewContext.tsx
 │       ├── types/
-│       ├── utils/
+│       │   └── Chat.ts
 │       ├── App.tsx
 │       ├── index.css
 │       └── main.tsx
