@@ -437,22 +437,7 @@ aws ssm put-parameter `
 
 &nbsp;
 
-The following SSM parameters are created automatically by the CDK deployment and do not need to be set manually:
 
-| Parameter | Description |
-|---|---|
-| `/SpecEx/API/AllowedOrigins` | Set automatically to the Amplify app URL during deployment |
-
-### Summary of All SSM Parameters
-
-| Parameter | Required | Set By | Description |
-|---|---|---|---|
-| `specEx-owner-name` | Yes | You (pre-deploy) | Your GitHub username |
-| `/SpecEx/AllowedEmailDomains` | Yes | You (pre-deploy) | Comma-separated list of allowed signup email domains |
-| `/SpecEx/LLM/HaikuArn` | Yes | You (pre-deploy) | Claude Haiku model ID for text generation |
-| `/SpecEx/LLM/SonnetArn` | Yes | You (pre-deploy) | Claude Sonnet model ID for text generation |
-| `/SpecEx/KnowledgeBase/WebCrawlerUrls` | Yes | You (pre-deploy) | Comma-separated URLs for the KB web crawler. Must exist before `cdk synth` or deployment will fail. |
-| `/SpecEx/API/AllowedOrigins` | — | CDK (auto) | Amplify app URL, set automatically during deployment |
 
 ### Step 3: CDK Deployment
 
