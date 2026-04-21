@@ -66,28 +66,6 @@ export class ApiGatewayStack extends cdk.Stack {
   ) {
     super(scope, id, props);
 
-
-    const crParams = {
-      service: 'SSM',
-      action: 'putParameter',
-      parameters: {
-        Name: '/SpecEx/API/AllowedOrigins',
-        Value: '*',
-        Type: 'String',
-        Description: 'List of allowed CORS origins for the API',
-      },
-      physicalResourceId: cr.PhysicalResourceId.of(Date.now().toString()),
-      ignoreErrorCodesMatching: 'ParameterAlreadyExists',
-    };
-
-    const initAllowedOrigins = new cr.AwsCustomResource(this, 'InitAllowedOriginsParamV2', {
-      onCreate: crParams,
-      onUpdate: crParams,
-      policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
-        resources: [`arn:aws:ssm:${this.region}:${this.account}:parameter/SpecEx/API/AllowedOrigins`],
-      }),
-    });
-
     
     this.layerList = {};
     /**
@@ -119,6 +97,28 @@ export class ApiGatewayStack extends cdk.Stack {
       compatibleRuntimes: [lambda.Runtime.PYTHON_3_12],
       description: "Lambda layer containing the psycopg2 Python library",
     });
+
+    // Create Allowed Origin Parameters
+      const crParams = {
+          service: 'SSM',
+          action: 'putParameter',
+          parameters: {
+            Name: '/SpecEx/API/AllowedOrigins',
+            Value: '*',
+            Type: 'String',
+            Description: 'List of allowed CORS origins for the API',
+          },
+          physicalResourceId: cr.PhysicalResourceId.of(Date.now().toString()),
+          ignoreErrorCodesMatching: 'ParameterAlreadyExists',
+        };
+    
+        const initAllowedOrigins = new cr.AwsCustomResource(this, 'InitAllowedOriginsParamV2', {
+          onCreate: crParams,
+          onUpdate: crParams,
+          policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
+            resources: [`arn:aws:ssm:${this.region}:${this.account}:parameter/SpecEx/API/AllowedOrigins`],
+          }),
+        });
 
     // powertoolsLayer does not follow the format of layerList
     const powertoolsLayer = lambda.LayerVersion.fromLayerVersionArn(
@@ -987,11 +987,19 @@ export class ApiGatewayStack extends cdk.Stack {
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
           REGION: this.region,
           LLM_REGION: "us-west-2",
-          BEDROCK_MODEL_ID: `us.anthropic.claude-sonnet-4-6`
+          BEDROCK_MODEL_ID: `us.anthropic.claude-sonnet-4-6`,
+          KB_SECRET_NAME: "SpecEx/KnowledgeBase/Id"
         },
       }
     )
-      // Grant SSM parameter access for HaikuArn and SonnetArn
+
+    // Grand Knowledge Base Secret Access 
+    lambdaTextGen.addToRolePolicy(new iam.PolicyStatement({
+      actions: ["secretsmanager:GetSecretValue"],
+      resources: [`arn:aws:secretsmanager:${this.region}:${this.account}:secret:*KnowledgeBase/Id-*`]
+    }))
+
+    // Grant SSM parameter access for HaikuArn and SonnetArn
       lambdaTextGen.addToRolePolicy(
         new iam.PolicyStatement({
           effect: iam.Effect.ALLOW,
@@ -1156,6 +1164,7 @@ export class ApiGatewayStack extends cdk.Stack {
         SCHEDULER_ROLE_ARN: `arn:aws:iam::${this.account}:role/${id}-schedulerInvokeRole`,
         SCHEDULER_TARGET_ARN: `arn:aws:lambda:${this.region}:${this.account}:function:${id}-lambdaKnowledgeBase`,
         KNOWLEDGE_BASE_BUCKET_NAME: props.knowledgeBaseBucket.bucketName,
+        KB_SECRET_NAME: "SpecEx/KnowledgeBase/Id"
       },
     });
 
@@ -1205,7 +1214,6 @@ export class ApiGatewayStack extends cdk.Stack {
         effect: iam.Effect.ALLOW,
         actions: ["secretsmanager:GetSecretValue"],
         resources: [
-          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*KnowledgeBase/Id/playground-*`, //TODO: remove this as we'll merge to a single knowledge base
           `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*KnowledgeBase/Id-*`
         ],
       })
@@ -1289,7 +1297,7 @@ export class ApiGatewayStack extends cdk.Stack {
       sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/member*`,
     });
 
-    //TODO: REMOVE IN PRODUCTION
+    //Allows Invoking Functions Easily for Testing Purposes
     lambdaUserFunction.addPermission("AllowTestInvoke", {
       principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
       action: "lambda:InvokeFunction",
@@ -1434,7 +1442,7 @@ export class ApiGatewayStack extends cdk.Stack {
     }));
 
 
-    //TODO: REMOVE IN PRODUCTION - allows invoking admin Lambda from API Gateway test stage for easier testing
+    //allows invoking admin Lambda from API Gateway test stage for easier testing
     lambdaAdminFunction.addPermission("AllowTestInvoke", {
       principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
       action: "lambda:InvokeFunction",

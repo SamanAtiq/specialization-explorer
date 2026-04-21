@@ -45,7 +45,6 @@ function SidebarContent({
       <div className="mb-2">
         <div className="flex items-center justify-between mb-2">
           <h3 className="px-3 text-xs font-semibold text-muted-foreground tracking-wide">
-            {/* TODO: change later */}
             CHATS
           </h3>
           <Button

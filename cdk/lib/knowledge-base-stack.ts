@@ -75,6 +75,7 @@ export class KnowledgeBaseStack extends Stack {
       }),
     });
 
+
     // Create encryption policy for OpenSearch Serverless
     const encryptionPolicy = new opensearchserverless.CfnSecurityPolicy(this, "EncryptionPolicy", {
       name: `${collectionName}-enc`,
@@ -145,7 +146,7 @@ export class KnowledgeBaseStack extends Stack {
       cors: [{
         allowedHeaders: ["*"],
         allowedMethods: [s3.HttpMethods.GET, s3.HttpMethods.PUT, s3.HttpMethods.POST, s3.HttpMethods.DELETE],
-        allowedOrigins: ["*"], // TODO: restrict in production
+        allowedOrigins: ["*"], 
         exposedHeaders: ["ETag"],
       }],
     });
@@ -338,7 +339,7 @@ export class KnowledgeBaseStack extends Stack {
 
     // Store Knowledge Base ID in AWS Secrets Manager
     const knowledgeBaseIdSecret = new secretsmanager.Secret(this, "KnowledgeBaseIdSecret", {
-      secretName: `${props.stackPrefix}/KnowledgeBase/IdV2`, //TODO: update this to Id
+      secretName: "SpecEx/KnowledgeBase/Id",
       description: "The ID of the Bedrock Knowledge Base",
       secretStringValue: cdk.SecretValue.unsafePlainText(this.knowledgeBaseId),
     });

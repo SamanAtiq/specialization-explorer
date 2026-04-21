@@ -12,6 +12,7 @@ import { ApiGatewayStack } from "./api-stack";
 interface AmplifyStackProps extends cdk.StackProps {
   githubRepo: string;
   githubBranch?: string;
+  knowledgeBaseBucketName: string;
 }
 
 export class AmplifyStack extends cdk.Stack {
@@ -124,6 +125,39 @@ export class AmplifyStack extends cdk.Stack {
         resources: [
           `arn:aws:ssm:${this.region}:${this.account}:parameter/SpecEx/API/AllowedOrigins`,
         ],
+      }),
+    });
+
+    // --- UPDATE THE S3 Bucket Allowed Origin --- 
+    const corsConfig = JSON.stringify({
+      CORSRules: [{
+        AllowedHeaders: ['*'],
+        AllowedMethods: ['GET', 'PUT', 'POST', 'DELETE'],
+        AllowedOrigins: [amplifyUrl],
+        ExposeHeaders: ['ETag'],
+      }],
+    });
+
+    new cdk.custom_resources.AwsCustomResource(this, 'UpdateS3BucketCors', {
+      onCreate: {
+        service: 'S3',
+        action: 'putBucketCors',
+        parameters: {
+          Bucket: props.knowledgeBaseBucketName,
+          CORSConfiguration: JSON.parse(corsConfig),
+        },
+        physicalResourceId: cdk.custom_resources.PhysicalResourceId.of('UpdateS3BucketCors'),
+      },
+      onUpdate: {
+        service: 'S3',
+        action: 'putBucketCors',
+        parameters: {
+          Bucket: props.knowledgeBaseBucketName,
+          CORSConfiguration: JSON.parse(corsConfig),
+        },
+      },
+      policy: cdk.custom_resources.AwsCustomResourcePolicy.fromSdkCalls({
+        resources: [`arn:aws:s3:::${props.knowledgeBaseBucketName}`],
       }),
     });
   }

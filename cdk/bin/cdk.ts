@@ -81,6 +81,7 @@ const amplifyStack = new AmplifyStack(app, `${StackPrefix}-Amplify`, apiStack, {
   env,
   githubRepo: githubRepo,
   githubBranch: githubBranch,
+  knowledgeBaseBucketName: kbStack.knowledgeBaseBucket.bucketName,
 });
 amplifyStack.addDependency(apiStack);
 

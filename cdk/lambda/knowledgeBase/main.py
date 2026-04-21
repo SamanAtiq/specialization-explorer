@@ -16,8 +16,7 @@ logger.setLevel(logging.INFO)
 
 # Environment variables
 DB_SECRET_NAME = os.environ["SM_DB_CREDENTIALS"]
-# TODO: will be an evironment variable passed in from API stack with Knowledge Base stack is completed
-KB_SECRET_NAME = "SpecEx/KnowledgeBase/Id/playground"
+KB_SECRET_NAME = os.environ["KB_SECRET_NAME"]
 REGION = os.environ["REGION"]
 RDS_PROXY_ENDPOINT = os.environ["RDS_PROXY_ENDPOINT"]
 

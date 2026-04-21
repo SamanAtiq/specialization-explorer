@@ -23,6 +23,8 @@ LLM_REGION = os.getenv("LLM_REGION", "us-west-2")
 GUARDRAIL_ID = os.getenv('GUARDRAIL_ID')
 GUARDRAIL_VERSION = os.getenv('GUARDRAIL_VERSION')
 
+KB_SECRET_NAME = os.getenv('KB_SECRET_NAME')
+
 # Chat Configuration
 DAILY_TOKEN_LIMIT = 10000
 MIN_EXCHANGES_BEFORE_SUGGEST = 4
@@ -102,7 +104,7 @@ def load_config(db_connection):
     if not KB_ID:
         try:
             client = boto3.client('secretsmanager')
-            response = client.get_secret_value(SecretId='SpecEx/KnowledgeBase/Id')
+            response = client.get_secret_value(SecretId=KB_SECRET_NAME)
             KB_ID = response.get('SecretString')
             logger.info("Successfully loaded KB_ID from Secrets Manager.")
         except Exception as e:

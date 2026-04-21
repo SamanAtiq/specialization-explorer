@@ -303,11 +303,6 @@ def get_response(
             "intervention": None,
         }
 
-    # TODO: Log static_system_prompt size for prompt caching planning, remove it later
-    static_prompt_chars = len(static_system_prompt)
-    static_prompt_estimated_tokens = static_prompt_chars // 4
-    logger.info(f"static_system_prompt | chars={static_prompt_chars} | estimated_tokens={static_prompt_estimated_tokens}")
-
     # Structure the system array with the cache point
     request_payload = {
             "modelId": model_arn,
