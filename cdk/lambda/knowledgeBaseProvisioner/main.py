@@ -135,7 +135,7 @@ def _create_kb_and_data_sources(props):
                     }
                 }
                 if exclusion_filters:
-                    web_config['crawlingConfiguration'] = {
+                    web_config['crawlerConfiguration'] = {
                         'exclusionFilters': exclusion_filters
                     }
 
@@ -223,7 +223,7 @@ def _ensure_data_sources_for_kb(kb_id, props):
                 }
             }
             if exclusion_filters:
-                web_config['crawlingConfiguration'] = {
+                web_config['crawlerConfiguration'] = {
                     'exclusionFilters': exclusion_filters
                 }
 

@@ -74,7 +74,7 @@ exports.up = (pgm) => {
       status ingestion_status NOT NULL,
       error_message text,
       created_at timestamptz DEFAULT now(),
-      completed_at timestamptz
+      completed_at timestamptz,
       metadata jsonb DEFAULT '{}'
     );
 

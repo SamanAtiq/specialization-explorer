@@ -501,6 +501,21 @@ This means in most cases you do not need to manually trigger the pipeline — it
 - Verify that the required images and tags are present in ECR.
 - Ensure that the IAM roles for CodePipeline and CodeBuild have the necessary permissions to push images to ECR.
 
+> **Tip:** The KnowledgeBase stack waits for a Docker image to exist in ECR before it can complete. To avoid a long wait, authorize the GitHub connection and trigger the pipeline **as soon as the CICD stack finishes** — before the KnowledgeBase stack starts deploying. This is only required for the first deployment; subsequent deploys will automatically trigger a new build if the relevant source code has changed.
+>
+> **1. Authorize the GitHub connection (first deployment only):**
+> - Follow the same steps as above to authorize the connection.
+>
+> **2. Trigger the CodePipeline build:**
+> - Go to AWS Console → **CodePipeline**
+> - Find `<PREFIX>-CICD-DockerImagePipeline`
+> - Click **Release change** to start the pipeline manually
+> - This kicks off CodeBuild, which builds and pushes the Docker image to ECR
+>
+> Once the image is in ECR, the KnowledgeBase stack will detect it and continue deploying without waiting.
+
+
+
 ## Post-Deployment
 
 ### Step 1: Build AWS Amplify App
