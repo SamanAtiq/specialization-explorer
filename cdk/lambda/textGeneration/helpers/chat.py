@@ -10,7 +10,7 @@ from helpers.logic import get_current_prompt
 from helpers.bedrock import retrieve_documents, format_context_for_prompt
 from helpers.intervention import assess_response
 import helpers.config as config
-from helpers.message_limits import check_limit, record_usage
+from helpers.message_limits import check_limit, record_message_sent
 from helpers.guardrail import invoke_guardrail, ACTION_ANONYMIZED, ACTION_BLOCKED
 
 logger = logging.getLogger(__name__)
@@ -228,12 +228,12 @@ def get_response(
             is_under_limit, usage_info = check_limit(user_id, db_connection)
             if not is_under_limit:
                 return {
-                    "response": "Daily token limit exceeded. Please try again tomorrow.",
+                    "response": "Daily message limit exceeded. Please try again tomorrow.",
                     "sources_used": [],
                     "sessionId": chat_session_id,
                     "is_first_message": False,
-                    "token_limit_exceeded": True,
-                    "token_usage": usage_info,
+                    "message_limit_exceeded": True,
+                    "message_usage": usage_info,
                     "warning": None,
                     "intervention": None
                 }
@@ -268,7 +268,7 @@ def get_response(
                     "sources_used": [],
                     "sessionId": chat_session_id,
                     "is_first_message": False,
-                    "token_usage": {},
+                    "message_usage": {},
                     "warning": None,
                     "intervention": None,
                 }
@@ -286,6 +286,9 @@ def get_response(
             db_connection,
             save_user_message=save_user_message
         )
+
+        if user_id and save_user_message:
+            usage_info = record_message_sent(user_id, db_connection)
 
     except ValueError as e:
         return {
@@ -436,16 +439,13 @@ def get_response(
         warning_text
     )
 
-    if user_id and final_answer_text and not answer_text.startswith("I encountered an error"):
-        usage_info = record_usage(user_id, answer_text, db_connection)
-
     return {
         "response": final_answer_text,
         "raw_response": answer_text,
         "sources_used": used_sources,
         "sessionId": chat_session_id,
         "is_first_message": False,
-        "token_usage": usage_info,
+        "message_usage": usage_info,
         "warning": warning_text,
         "intervention": intervention_result
     }
