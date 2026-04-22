@@ -150,8 +150,8 @@ exports.handler = async (event) => {
             role,
             created_at,
             last_seen_at,
-            tokens_used,
-            token_window_started_at,
+            messages_sent,
+            messages_window_started_at,
             metadata
         `;
 

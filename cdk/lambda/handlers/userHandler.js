@@ -127,7 +127,7 @@ exports.handler = async (event) => {
 
         const user = await sqlConnection`
           SELECT id, email, display_name, role, created_at, last_seen_at,
-                tokens_used, token_window_started_at, metadata
+                messages_sent, messages_window_started_at, metadata
           FROM users
           WHERE id = ${userId}
         `;
@@ -216,8 +216,8 @@ exports.handler = async (event) => {
               role,
               created_at,
               last_seen_at,
-              tokens_used,
-              token_window_started_at,
+              messages_sent,
+              messages_window_started_at,
               metadata
           `;
 
