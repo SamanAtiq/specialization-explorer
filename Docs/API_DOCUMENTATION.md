@@ -104,26 +104,6 @@ curl -X GET "https://{api-id}.execute-api.{region}.amazonaws.com/prod/user/publi
 
 ---
 
-## Get User Guidelines
-
-Returns the user guidelines content displayed on the guidelines page.
-
-**Endpoint:** `GET /public/config/userGuidelines`
-
-**Response:**
-
-```json
-{ "userGuidelines": "Welcome to Specialization Explorer..." }
-```
-
-**Example (cURL):**
-
-```bash
-curl -X GET "https://{api-id}.execute-api.{region}.amazonaws.com/prod/public/config/userGuidelines"
-```
-
----
-
 # User Endpoints
 
 These endpoints require a valid Cognito token (`userAuthorizer`).

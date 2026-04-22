@@ -557,53 +557,6 @@ exports.handler = async (event) => {
         break;
       }
 
-      // GET /public/config/userGuidelines - Public endpoint to fetch user guidelines
-      case "GET /public/config/userGuidelines":
-
-        if (!authenticatedDeleteUserId) {
-          response.statusCode = 401;
-          response.body = JSON.stringify({ error: "Authentication required" });
-          break;
-        }
-
-        const analyticsToDelete = await sqlConnection`
-          SELECT id, user_id
-          FROM analytics_events
-          WHERE id = ${deleteAnalyticsId}
-        `;
-
-        if (analyticsToDelete.length === 0) {
-          response.statusCode = 404;
-          response.body = JSON.stringify({ error: "Analytics event not found" });
-          break;
-        }
-
-        if (analyticsToDelete[0].user_id !== authenticatedDeleteUserId) {
-          response.statusCode = 403;
-          response.body = JSON.stringify({ error: "You do not own this analytics event" });
-          break;
-        }
-        try {
-          const guidelinesResult = await sqlConnection`
-            SELECT value FROM system_settings WHERE key = 'user_guidelines'
-          `;
-
-          const userGuidelines =
-            guidelinesResult.length > 0 ? guidelinesResult[0].value : "";
-
-          response.statusCode = 200;
-          response.body = JSON.stringify({
-            userGuidelines: userGuidelines,
-          });
-        } catch (error) {
-          console.error("Error getting user guidelines:", error);
-          response.statusCode = 500;
-          response.body = JSON.stringify({
-            error: "Failed to get user guidelines",
-          });
-        }
-        break;
-
       default:
         throw new Error(`Unsupported route: "${pathData}"`);
     }

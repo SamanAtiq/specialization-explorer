@@ -1,7 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router";
 import AppLayout from "./layouts/AppLayout";
 import AIChatPage from "./pages/ChatInterface/ChatInterface";
-import UserGuidelines from "./pages/UserGuidelines";
 import { UserProvider } from "./providers/UserContext";
 import HomePage from "./pages/HomePage";
 import AdminLogin from "./pages/Admin/AdminLogin";
@@ -38,8 +37,6 @@ function App() {
             <Route path="/" element={<HomePage />}>
               <Route path="chat" element={<AIChatPage />} />
             </Route>
-
-            <Route path="/guidelines" element={<UserGuidelines />} />
 
             {/* Admin Routes */}
             <Route path="/admin/login" element={<AdminLogin />} />

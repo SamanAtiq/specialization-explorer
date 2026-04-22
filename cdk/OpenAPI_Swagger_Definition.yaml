@@ -1203,33 +1203,6 @@ paths:
         httpMethod: POST
         type: aws_proxy
 
-  /public/config/userGuidelines:
-    <<: *commonOptions
-    get:
-      tags:
-        - User
-      summary: Get the user guidelines displayed on the guidelines page
-      operationId: get_public_user_guidelines
-      responses:
-        "200":
-          description: Returns a JSON object with the user guidelines content
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  userGuidelines:
-                    type: string
-                    description: The user guidelines content (markdown or plain text)
-        "500":
-          description: Internal Server Error
-      x-amazon-apigateway-integration:
-        uri:
-          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${userFunction.Arn}/invocations
-        passthroughBehavior: "when_no_match"
-        httpMethod: POST
-        type: aws_proxy
-
   /system_message/{message_type}:
     <<: *commonOptions
     get:
