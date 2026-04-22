@@ -1907,7 +1907,7 @@ paths:
       summary: Get max characters allowed per user message
       operationId: get_system_setting_max_characters_per_user_message
       security:
-        - bearerAuth: []
+        - userAuthorizer: []
       responses:
         "200":
           description: Max characters allowed per user message
