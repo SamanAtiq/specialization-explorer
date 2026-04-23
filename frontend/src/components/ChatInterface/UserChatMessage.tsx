@@ -1,6 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
 
-// Props for saving a user's message as a shared prompt
 type UserChatMessageProps = {
   text: string;
 };
