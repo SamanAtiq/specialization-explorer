@@ -338,12 +338,13 @@ export class KnowledgeBaseStack extends Stack {
     this.s3DataSourceId = kbCustomResource.getAttString("S3DataSourceId");
     this.webCrawlerDataSourceId = kbCustomResource.getAttString("WebCrawlerDataSourceId");
 
-    // Store Knowledge Base ID in AWS Secrets Manager
-    this.knowledgeBaseSecret = new secretsmanager.Secret(this, "KnowledgeBaseIdSecret", {
-      secretName: `${props.stackPrefix}/KnowledgeBase/Id`,
-      description: "The ID of the Bedrock Knowledge Base",
-      secretStringValue: cdk.SecretValue.unsafePlainText(this.knowledgeBaseId),
-    });
+    // Store Knowledge Base ID in AWS Secrets Manager or reference the existing secret
+    const knowledgeBaseSecretName = `${props.stackPrefix}/KnowledgeBase/Id`;
+    this.knowledgeBaseSecret = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      "KnowledgeBaseIdSecret",
+      knowledgeBaseSecretName
+    ) as secretsmanager.Secret;
 
     // Outputs
     new CfnOutput(this, "KnowledgeBaseId", {
