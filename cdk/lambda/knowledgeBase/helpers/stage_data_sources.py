@@ -185,7 +185,7 @@ def _insert_ingestion_run_row(
 
 def stage_data_sources(event, body, connection):
     """
-    Stage either a website or a CSV/JSON pair for future syncing
+    Stage either a website, CSV/JSON pair, or markdown/JSON pair for future syncing
 
     This method:
     - validates the request
