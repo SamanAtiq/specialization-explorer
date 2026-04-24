@@ -72,7 +72,7 @@ def _latest_run_rows_by_status(connection, *, status: str, data_source_types: li
     """
     Return the latest ingestion run per data source filtered by status and type.
 
-    For the S3 phase, this is used to collect the currently queued CSV and JSON
+    For the S3 phase, this is used to collect the currently queued CSV/markdown and JSON
     sources that should be included in the next ingestion run.
     """
     with connection.cursor() as cursor:
@@ -145,7 +145,7 @@ def _start_ingestion(knowledge_base_id: str, data_source_id: str) -> dict:
     """
     Start a Bedrock ingestion job for the shared S3 data source.
 
-    This kicks off ingestion for all queued CSV and JSON sources staged for
+    This kicks off ingestion for all queued CSV/markdown and JSON sources staged for
     the current sync session.
     """
     resp = bedrock_agent.start_ingestion_job(
@@ -209,7 +209,7 @@ def _mark_runs_running(
     schedule_name: str,
 ):
     """
-    Mark the selected CSV and JSON ingestion runs as running.
+    Mark the selected CSV/markdown and JSON ingestion runs as running.
 
     The metadata is updated with the current sync session, Bedrock ingestion
     job ID, scheduler name, and phase so later polling can resume correctly.
@@ -242,7 +242,7 @@ def process_s3_batch(event, connection, kb_id, sync_session_id: str, triggered_b
     Start the S3 phase for the current sync session.
 
     This method:
-    - finds the latest queued CSV and JSON ingestion runs
+    - finds the latest queued CSV/markdown and JSON ingestion runs
     - locates the shared S3 Bedrock data source
     - starts one Bedrock ingestion job for that shared data source
     - creates the 5-minute polling scheduler
@@ -254,7 +254,7 @@ def process_s3_batch(event, connection, kb_id, sync_session_id: str, triggered_b
     queued_runs = _latest_run_rows_by_status(
         connection,
         status="queued",
-        data_source_types=["csv", "json"],
+        data_source_types=["csv", "markdown", "json"],
     )
 
     if not queued_runs:
