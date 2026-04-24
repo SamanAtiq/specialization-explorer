@@ -44,7 +44,7 @@ type AnalyticsTotals = {
   questions?: number;
 };
 
-type DataSourceType = "csv" | "json" | "website";
+type DataSourceType = "csv" | "markdown" | "json" | "website";
 
 type DataSourceRow = {
   id: string;
@@ -95,6 +95,7 @@ function formatDateTime(iso?: string | null) {
 function typeLabel(t: DataSourceType) {
   if (t === "website") return "Website";
   if (t === "csv") return "CSV";
+  if (t === "markdown") return "Markdown";
   if (t === "json") return "JSON";
   return t;
 }
@@ -128,13 +129,25 @@ function formatSizeMb(file: File | null) {
   return `${(file.size / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-function validateCsvFile(file: File): string | null {
-  const isCsv =
-    file.name.toLowerCase().endsWith(".csv") || file.type === "text/csv";
+function isMarkdownFile(file: File) {
+  const lower = file.name.toLowerCase();
+  return lower.endsWith(".md") || lower.endsWith(".markdown") || file.type === "text/markdown";
+}
 
-  if (!isCsv) return "Only CSV files are allowed.";
-  if (file.size > 50 * 1024 * 1024) return "CSV file size must be less than 50MB.";
+function isCsvFile(file: File) {
+  return file.name.toLowerCase().endsWith(".csv") || file.type === "text/csv";
+}
+
+function validatePrimaryFile(file: File): string | null {
+  const valid = isCsvFile(file) || isMarkdownFile(file);
+
+  if (!valid) return "Only CSV or Markdown files are allowed.";
+  if (file.size > 50 * 1024 * 1024) return "File size must be less than 50MB.";
   return null;
+}
+
+function getPrimaryFileType(file: File): "csv" | "markdown" {
+  return isMarkdownFile(file) ? "markdown" : "csv";
 }
 
 function validateMetadataFile(file: File): string | null {
@@ -149,8 +162,8 @@ function validateMetadataFile(file: File): string | null {
   return null;
 }
 
-function expectedMetadataFileName(csvFileName: string) {
-  return `${csvFileName}.metadata.json`;
+function expectedMetadataFileName(primaryFileName: string) {
+  return `${primaryFileName}.metadata.json`;
 }
 
 export default function DataSourceManagement() {
@@ -170,7 +183,7 @@ export default function DataSourceManagement() {
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [primaryFile, setPrimaryFile] = useState<File | null>(null);
   const [metadataFile, setMetadataFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<{
@@ -428,14 +441,14 @@ export default function DataSourceManagement() {
     }
   };
 
-  const handleCsvFileSelect = (selectedFile: File) => {
+  const handlePrimaryFileSelect = (selectedFile: File) => {
     setUploadStatus({ type: null, message: "" });
-    const validationError = validateCsvFile(selectedFile);
+    const validationError = validatePrimaryFile(selectedFile);
     if (validationError) {
       setUploadStatus({ type: "error", message: validationError });
       return;
     }
-    setCsvFile(selectedFile);
+    setPrimaryFile(selectedFile);
   };
 
   const handleMetadataFileSelect = (selectedFile: File) => {
@@ -451,14 +464,19 @@ export default function DataSourceManagement() {
   const getPresignedUpload = async (
     token: string,
     file: File,
-    uploadType: "csv" | "json"
+    uploadType: "csv" | "markdown" | "json"
   ): Promise<PresignedUploadResponse> => {
+    const fallbackContentType =
+      uploadType === "csv"
+        ? "text/csv"
+        : uploadType === "markdown"
+        ? "text/markdown"
+        : "application/json";
+
     const res = await fetch(
       `${import.meta.env.VITE_API_ENDPOINT}/admin/generate-presigned-url?file_name=${encodeURIComponent(
         file.name
-      )}&content_type=${encodeURIComponent(
-        file.type || (uploadType === "csv" ? "text/csv" : "application/json")
-      )}`,
+      )}&content_type=${encodeURIComponent(file.type || fallbackContentType)}`,
       {
         headers: {
           Authorization: token,
@@ -493,16 +511,16 @@ export default function DataSourceManagement() {
 
   const resetUploadDialog = () => {
     setIsUploadOpen(false);
-    setCsvFile(null);
+    setPrimaryFile(null);
     setMetadataFile(null);
     setUploadStatus({ type: null, message: "" });
   };
 
   const handleUpload = async () => {
-    if (!csvFile || !metadataFile) {
+    if (!primaryFile || !metadataFile) {
       setUploadStatus({
         type: "error",
-        message: "Please select both the CSV file and the metadata JSON file.",
+        message: "Please select both the primary file and the metadata JSON file.",
       });
       return;
     }
@@ -515,7 +533,7 @@ export default function DataSourceManagement() {
       return;
     }
 
-    const expectedMetadata = expectedMetadataFileName(csvFile.name);
+    const expectedMetadata = expectedMetadataFileName(primaryFile.name);
     if (metadataFile.name !== expectedMetadata) {
       setUploadStatus({
         type: "error",
@@ -531,11 +549,40 @@ export default function DataSourceManagement() {
       const session = await AuthService.getAuthSession(true);
       const token = session.tokens.idToken;
 
-      const csvUpload = await getPresignedUpload(token, csvFile, "csv");
-      await uploadFileToS3(csvUpload.presignedUrl, csvFile, "text/csv");
+      const primaryType = getPrimaryFileType(primaryFile);
+
+      const primaryUpload = await getPresignedUpload(token, primaryFile, primaryType);
+      await uploadFileToS3(
+        primaryUpload.presignedUrl,
+        primaryFile,
+        primaryType === "csv" ? "text/csv" : "text/markdown"
+      );
 
       const metadataUpload = await getPresignedUpload(token, metadataFile, "json");
       await uploadFileToS3(metadataUpload.presignedUrl, metadataFile, "application/json");
+
+      const body =
+        primaryType === "csv"
+          ? {
+              type: "csv",
+              csv_file_name: primaryFile.name,
+              csv_s3_bucket: primaryUpload.bucket,
+              csv_s3_key: primaryUpload.key,
+              metadata_file_name: metadataFile.name,
+              metadata_s3_bucket: metadataUpload.bucket,
+              metadata_s3_key: metadataUpload.key,
+              created_by: adminEmail,
+            }
+          : {
+              type: "markdown",
+              markdown_file_name: primaryFile.name,
+              markdown_s3_bucket: primaryUpload.bucket,
+              markdown_s3_key: primaryUpload.key,
+              metadata_file_name: metadataFile.name,
+              metadata_s3_bucket: metadataUpload.bucket,
+              metadata_s3_key: metadataUpload.key,
+              created_by: adminEmail,
+            };
 
       const stageResponse = await fetch(
         `${import.meta.env.VITE_API_ENDPOINT}/admin/data_sources`,
@@ -545,16 +592,7 @@ export default function DataSourceManagement() {
             Authorization: token,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            type: "csv",
-            csv_file_name: csvFile.name,
-            csv_s3_bucket: csvUpload.bucket,
-            csv_s3_key: csvUpload.key,
-            metadata_file_name: metadataFile.name,
-            metadata_s3_bucket: metadataUpload.bucket,
-            metadata_s3_key: metadataUpload.key,
-            created_by: adminEmail,
-          }),
+          body: JSON.stringify(body),
         }
       );
 
@@ -572,7 +610,7 @@ export default function DataSourceManagement() {
         type: "success",
         message:
           responseJson?.message ||
-          "CSV and metadata uploaded and staged successfully.",
+          `${primaryType === "csv" ? "CSV" : "Markdown"} and metadata uploaded and staged successfully.`,
       });
 
       await fetchAdminDataSources();
@@ -603,6 +641,7 @@ export default function DataSourceManagement() {
   })();
 
   // For CSV -> JSON pairing: "alumni_data_final.csv" -> find "alumni_data_final.csv.metadata.json"
+  // For markdown -> JSON pairing: "alumni_data_final.md" -> find "alumni_data_final.md.metadata.json"
   const jsonByCsvName = (() => {
     const map = new Map<string, DataSourceRow>();
     for (const ds of dataSources) {
@@ -614,7 +653,7 @@ export default function DataSourceManagement() {
     return map;
   })();
 
-  // hide JSON rows from main table (they appear as subrow under CSV)
+  // hide JSON rows from main table (they appear as subrow under CSV/markdown)
   const filteredDataSources = dataSources
     .filter((ds) => ds.type !== "json")
     .filter((ds) => {
@@ -800,14 +839,14 @@ export default function DataSourceManagement() {
                 <DialogTrigger asChild>
                   <Button variant="outline" className="bg-primary text-white">
                     <Upload className="mr-2 h-4 w-4" />
-                    Add Alumni Data (CSV)
+                    Add Data (CSV or Markdown)
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-2xl">
                   <DialogHeader>
                     <DialogTitle>Upload Alumni Data</DialogTitle>
                     <DialogDescription>
-                      Upload the alumni <span className="font-medium">CSV</span> and its corresponding{" "}
+                      Upload the <span className="font-medium">CSV</span> or <span className="font-medium">mardown</span> and its corresponding{" "}
                       <span className="font-medium">metadata JSON</span>. These files will be staged for the next sync.
                     </DialogDescription>
                   </DialogHeader>
@@ -815,23 +854,23 @@ export default function DataSourceManagement() {
                   <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <div className="text-sm font-medium text-gray-900">CSV file</div>
+                        <div className="text-sm font-medium text-gray-900">CSV or Markdown file</div>
 
-                        {!csvFile ? (
+                        {!primaryFile ? (
                           <div
                             className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:bg-gray-50 transition-colors cursor-pointer"
                             onDragOver={(e) => e.preventDefault()}
                             onDrop={(e) => {
                               e.preventDefault();
                               const droppedFile = e.dataTransfer.files?.[0];
-                              if (droppedFile) handleCsvFileSelect(droppedFile);
+                              if (droppedFile) handlePrimaryFileSelect(droppedFile);
                             }}
                             onClick={() => document.getElementById("csv-upload")?.click()}
                           >
                             <div className="flex flex-col items-center gap-2">
                               <Upload className="h-8 w-8 text-gray-400" />
                               <span className="text-sm font-medium text-gray-600">
-                                Drag and drop CSV
+                                Drag and drop CSV or Markdown
                               </span>
                               <span className="text-xs text-gray-400">
                                 or click to browse
@@ -841,10 +880,10 @@ export default function DataSourceManagement() {
                               id="csv-upload"
                               type="file"
                               className="hidden"
-                              accept=".csv,text/csv"
+                              accept=".csv,text/csv,.md,.markdown,text/markdown"
                               onChange={(e) => {
                                 const selectedFile = e.target.files?.[0];
-                                if (selectedFile) handleCsvFileSelect(selectedFile);
+                                if (selectedFile) handlePrimaryFileSelect(selectedFile);
                               }}
                             />
                           </div>
@@ -853,19 +892,19 @@ export default function DataSourceManagement() {
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2 overflow-hidden">
                                 <FileText className="h-5 w-5 text-primary flex-shrink-0" />
-                                <span className="text-sm font-medium truncate">{csvFile.name}</span>
+                                <span className="text-sm font-medium truncate">{primaryFile.name}</span>
                               </div>
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 className="h-6 w-6 p-0 text-gray-500 hover:text-red-600"
-                                onClick={() => setCsvFile(null)}
+                                onClick={() => setPrimaryFile(null)}
                                 disabled={uploading}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
-                            <div className="text-xs text-gray-500">{formatSizeMb(csvFile)}</div>
+                            <div className="text-xs text-gray-500">{formatSizeMb(primaryFile)}</div>
                           </div>
                         )}
                       </div>
@@ -927,11 +966,11 @@ export default function DataSourceManagement() {
                       </div>
                     </div>
 
-                    {csvFile && (
+                    {primaryFile && (
                       <div className="text-xs text-gray-600">
                         Expected metadata filename:{" "}
                         <code className="bg-gray-100 px-1 py-0.5 rounded">
-                          {expectedMetadataFileName(csvFile.name)}
+                          {expectedMetadataFileName(primaryFile.name)}
                         </code>
                       </div>
                     )}
@@ -955,12 +994,12 @@ export default function DataSourceManagement() {
                           <div className="text-amber-800">
                             <div className="font-semibold">Two files are required</div>
                             <div className="mt-1 text-amber-700">
-                              1) The <span className="font-medium">CSV</span> file
+                              1) The <span className="font-medium">CSV</span> or <span className="font-medium">Markdown</span> file
                               <br />
                               2) A matching <span className="font-medium">metadata JSON</span> file
                               with the exact name{" "}
                               <code className="bg-white/70 px-1 py-0.5 rounded border border-amber-200">
-                                {"<csv-file-name>.metadata.json"}
+                                {"<csv/md-file-name>.metadata.json"}
                               </code>
                             </div>
                           </div>
@@ -994,7 +1033,7 @@ export default function DataSourceManagement() {
                     <Button
                       className="bg-primary hover:bg-primary/90"
                       onClick={handleUpload}
-                      disabled={!csvFile || !metadataFile || uploading}
+                      disabled={!primaryFile || !metadataFile || uploading}
                     >
                       {uploading ? (
                         <>
@@ -1070,7 +1109,7 @@ export default function DataSourceManagement() {
                     const status = run?.status ?? "no_runs";
                     const isExpandable =
                       ds.type === "website" ||
-                      (ds.type === "csv" && !!jsonByCsvName.get(ds.name));
+                      ((ds.type === "csv" || ds.type === "markdown") && !!jsonByCsvName.get(ds.name));
                     const isOpen = !!expanded[ds.id];
 
                     return (
@@ -1179,7 +1218,7 @@ export default function DataSourceManagement() {
                                     </div>
                                   ) : null}
                                 </div>
-                              ) : ds.type === "csv" ? (
+                              ) : ds.type === "csv" || ds.type === "markdown" ? (
                                 (() => {
                                   const json = jsonByCsvName.get(ds.name);
                                   const jsonRun = json ? latestRunBySourceId.get(json.id) : undefined;
@@ -1232,7 +1271,7 @@ export default function DataSourceManagement() {
                                           </div>
                                         ) : (
                                           <div className="text-xs text-gray-500">
-                                            No metadata JSON found for this CSV.
+                                            No metadata JSON found for this CSV or Markdown.
                                           </div>
                                         )}
                                       </div>
