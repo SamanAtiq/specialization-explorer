@@ -15,7 +15,7 @@ exports.up = (pgm) => {
     EXCEPTION WHEN duplicate_object THEN null; END $$;
 
     DO $$ BEGIN
-      CREATE TYPE data_source_type AS ENUM ('website', 'csv', 'json');
+      CREATE TYPE data_source_type AS ENUM ('website', 'csv', 'markdown', 'json');
     EXCEPTION WHEN duplicate_object THEN null; END $$;
 
     DO $$ BEGIN
