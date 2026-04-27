@@ -1210,13 +1210,9 @@ export class ApiGatewayStack extends cdk.Stack {
       })
     );
 
-    lambdaKnowledgeBase.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["secretsmanager:GetSecretValue"],
-        resources: [props.knowledgeBaseSecret.secretArn],
-      })
-    );
+    // Grant access to read Knowledge Base ID
+    props.knowledgeBaseSecret.grantRead(lambdaKnowledgeBase);
+
     lambdaKnowledgeBase.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
