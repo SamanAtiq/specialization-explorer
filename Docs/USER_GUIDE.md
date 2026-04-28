@@ -9,7 +9,7 @@ Once you have deployed the solution, the following user guide will help you navi
 | Index | Description |
 | ----- | ----------- |
 | [Getting Started](#getting-started) | Open the app and start a conversation |
-| [Student View](#student-view) | Chat with UBC Specialization Explorer to learn about UBC Science specializations |
+| [Student View](#student-view) | Chat with the UBC Specialization Explorer to learn about UBC Science specializations |
 | [Administrator View](#administrator-view) | Manage data sources, LLM settings, analytics, and chat history |
 
 ---
@@ -22,7 +22,7 @@ Open the hosted Amplify URL provided during deployment, or run the frontend loca
 
 ## Student View
 
-The student-facing interface is a chat assistant that helps users explore UBC Science specializations.
+The student-facing interface is a chat assistant that helps users explore UBC Faculty of Science specializations.
 
 ### Home Page
 
