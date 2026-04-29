@@ -99,16 +99,6 @@ exports.up = (pgm) => {
       created_at timestamptz DEFAULT now()
     );
 
-    -- Session Feedback
-    CREATE TABLE IF NOT EXISTS session_feedback (
-      id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-      chat_session_id uuid NOT NULL,
-      user_id uuid,
-      rating int,
-      comment text,
-      created_at timestamptz DEFAULT now()
-    );
-
     -- Analytics Events
     CREATE TABLE IF NOT EXISTS analytics_events (
       id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -287,18 +277,6 @@ exports.up = (pgm) => {
       ALTER TABLE chat_messages
         ADD CONSTRAINT fk_chat_messages_chat_session_id
         FOREIGN KEY (chat_session_id) REFERENCES chat_sessions(id);
-    EXCEPTION WHEN duplicate_object THEN null; END $$;
-
-    DO $$ BEGIN
-      ALTER TABLE session_feedback
-        ADD CONSTRAINT fk_session_feedback_chat_session_id
-        FOREIGN KEY (chat_session_id) REFERENCES chat_sessions(id);
-    EXCEPTION WHEN duplicate_object THEN null; END $$;
-
-    DO $$ BEGIN
-      ALTER TABLE session_feedback
-        ADD CONSTRAINT fk_session_feedback_user_id
-        FOREIGN KEY (user_id) REFERENCES users(id);
     EXCEPTION WHEN duplicate_object THEN null; END $$;
 
     DO $$ BEGIN
@@ -575,7 +553,6 @@ exports.up = (pgm) => {
 exports.down = (pgm) => {
   pgm.sql(`
     DROP TABLE IF EXISTS analytics_events CASCADE;
-    DROP TABLE IF EXISTS session_feedback CASCADE;
     DROP TABLE IF EXISTS chat_messages CASCADE;
     DROP TABLE IF EXISTS chat_sessions CASCADE;
     DROP TABLE IF EXISTS system_settings CASCADE;
