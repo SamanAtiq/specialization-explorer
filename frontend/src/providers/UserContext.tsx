@@ -102,13 +102,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
               createdAt?: string;
             };
 
-            // basic expiry: 30 days
-            const createdAt = parsed.createdAt ? new Date(parsed.createdAt) : null;
-            const expired = createdAt
-              ? Date.now() - createdAt.getTime() > 1000 * 60 * 60 * 24 * 30
-              : false;
-
-            if (!expired) {
+            if (parsed.userId) {
               const ok = await validateUser(parsed);
               if (ok) {
                 setUserId(parsed.userId);
@@ -122,7 +116,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        // create a new user if none valid
+        // create a new user only if none valid
         await createUser();
       } catch (e) {
         setError(e instanceof Error ? e : new Error("Failed to initialize user"));
