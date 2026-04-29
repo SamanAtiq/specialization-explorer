@@ -292,11 +292,6 @@ exports.handler = async (event) => {
           WHERE chat_session_id = ${chatSessionId}
         `;
 
-        await sqlConnection`
-          DELETE FROM analytics_events
-          WHERE chat_session_id = ${chatSessionId}
-        `;
-
         // Delete the chat session
         await sqlConnection`
           DELETE FROM chat_sessions
