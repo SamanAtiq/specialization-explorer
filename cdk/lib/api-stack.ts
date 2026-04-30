@@ -107,7 +107,7 @@ export class ApiGatewayStack extends cdk.Stack {
           action: 'putParameter',
           parameters: {
             Name: this.allowedOriginsParamName,
-            Value: '*',
+            Value: 'http://localhost:5173/',
             Type: 'String',
             Description: 'List of allowed CORS origins for the API',
           },
@@ -987,7 +987,7 @@ export class ApiGatewayStack extends cdk.Stack {
           SM_DB_CREDENTIALS: db.secretPathUser.secretName,
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
           REGION: this.region,
-          LLM_REGION: "us-west-2",
+          LLM_REGION: this.region,
           BEDROCK_MODEL_ID: `us.anthropic.claude-sonnet-4-6`,
           KB_SECRET_NAME: props.knowledgeBaseSecret.secretName
         },
@@ -1150,6 +1150,8 @@ export class ApiGatewayStack extends cdk.Stack {
         "bedrock:GetInferenceProfile",
         "bedrock:InvokeModel",
         "bedrock:InvokeModelWithResponseStream", // Add streaming permission
+        "bedrock:Converse",
+        "bedrock:ConverseStream",
         "bedrock:Retrieve", // Add Retrieve permission for Knowledge Base
       ],
       resources: [

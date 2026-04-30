@@ -327,7 +327,7 @@ export class KnowledgeBaseStack extends Stack {
         WebCrawlerUrls: webCrawlerUrls,
         // If the placeholder URL is used, exclude everything so nothing gets crawled.
         // When real URLs are set, no exclusion filter is applied.
-        WebCrawlerExclusionFilters: webCrawlerUrls.trim() === "https://example.com" ? ".*" : "",
+        WebCrawlerExclusionFilters: webCrawlerUrls.trim() === "https://example.com" ? "https://example\\.com.*" : "",
       },
     });
 
@@ -338,8 +338,45 @@ export class KnowledgeBaseStack extends Stack {
     this.s3DataSourceId = kbCustomResource.getAttString("S3DataSourceId");
     this.webCrawlerDataSourceId = kbCustomResource.getAttString("WebCrawlerDataSourceId");
 
-    // Store Knowledge Base ID in AWS Secrets Manager or reference the existing secret
+    // Create the secret if it doesn't exist, update its value if it does
     const knowledgeBaseSecretName = `${props.stackPrefix}/KnowledgeBase/Id`;
+    const secretArn = `arn:aws:secretsmanager:${this.region}:${this.account}:secret:${knowledgeBaseSecretName}-*`;
+
+    const ensureSecret = new AwsCustomResource(this, "EnsureKBSecret", {
+      onCreate: {
+        service: "SecretsManager",
+        action: "createSecret",
+        parameters: {
+          Name: knowledgeBaseSecretName,
+          SecretString: this.knowledgeBaseId,
+          Description: "Knowledge Base ID for the application",
+        },
+        physicalResourceId: PhysicalResourceId.of(knowledgeBaseSecretName),
+        ignoreErrorCodesMatching: "ResourceExistsException",
+      },
+      onUpdate: {
+        service: "SecretsManager",
+        action: "putSecretValue",
+        parameters: {
+          SecretId: knowledgeBaseSecretName,
+          SecretString: this.knowledgeBaseId,
+        },
+        physicalResourceId: PhysicalResourceId.of(knowledgeBaseSecretName),
+      },
+      policy: AwsCustomResourcePolicy.fromStatements([
+        new iam.PolicyStatement({
+          actions: ["secretsmanager:CreateSecret"],
+          resources: ["*"], // CreateSecret cannot be scoped to a specific ARN (secret doesn't exist yet)
+        }),
+        new iam.PolicyStatement({
+          actions: ["secretsmanager:PutSecretValue"],
+          resources: [secretArn],
+        }),
+      ]),
+    });
+
+    ensureSecret.node.addDependency(kbCustomResource);
+
     this.knowledgeBaseSecret = secretsmanager.Secret.fromSecretNameV2(
       this,
       "KnowledgeBaseIdSecret",
