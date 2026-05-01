@@ -88,7 +88,7 @@ Click "Add Web URL" to stage a website for ingestion. Optionally provide include
 
 #### Adding a File
 
-Click "Add Alumni Data (CSV)" to upload a CSV file and its corresponding metadata JSON. Both files are uploaded to S3 and staged for the next sync.
+Click "Add Alumni Data (CSV or Markdown)" to upload a CSV/Markdown file and its corresponding metadata JSON. Both files are uploaded to S3 and staged for the next sync.
 
 ![image](./media/admin-add-file.png)
 
