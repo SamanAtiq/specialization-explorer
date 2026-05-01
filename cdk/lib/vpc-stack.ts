@@ -21,10 +21,10 @@ export class VpcStack extends Stack {
   ) {
     super(scope, id, props);
 
-    const existingVpcId: string = "vpc-0515a0d6ee4abcd8e"; // CHANGE IF DEPLOYING WITH EXISTING VPC
+    const existingVpcId: string = ""; // CHANGE IF DEPLOYING WITH EXISTING VPC
 
     if (existingVpcId !== "") {
-      const AWSControlTowerStackSet = "StackSet-AWSControlTowerBP-VPC-ACCOUNT-FACTORY-V1-df80d055-f27d-4b9a-917f-f0db2da2ad91"; // CHANGE TO YOUR CONTROL TOWER STACK SET
+      const AWSControlTowerStackSet = ""; // CHANGE TO YOUR CONTROL TOWER STACK SET
       const existingPublicSubnetID: string = ""; // CHANGE IF DEPLOYING WITH EXISTING PUBLIC SUBNET
 
       const latPrefix = props.stackPrefix;
