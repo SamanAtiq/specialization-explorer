@@ -535,6 +535,8 @@ const existingVpcId: string = "your-vpc-id"; // CHANGE IF DEPLOYING WITH EXISTIN
 
 You can find your VPC ID in the **VPC dashboard** of the AWS Console under **Your VPCs**.
 
+![VPC ID](media/ExistingVPCId.png)
+
 **2. Set your AWS Control Tower Stack Set name**
 
 In the same file, update the `AWSControlTowerStackSet` variable with your stack set name:
@@ -544,6 +546,8 @@ const AWSControlTowerStackSet = "your-stackset-name"; // CHANGE TO YOUR CONTROL 
 ```
 
 You can find this in the **CloudFormation** console under **Stacks**. Look for a stack whose name starts with `StackSet-AWSControlTowerBP-VPC-ACCOUNT-FACTORY`.
+
+![AWS Control Tower Stack Set](media/AWSControlTowerStack.png)
 
 The stack set name is used to import the private subnet IDs, route table IDs, and subnet CIDR ranges via CloudFormation exports — so it must match exactly.
 
