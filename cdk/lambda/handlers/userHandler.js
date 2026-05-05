@@ -24,7 +24,7 @@ const initConnection = async () => {
         username: credentials.username,
         password: credentials.password,
         database: credentials.dbname,
-        ssl: { rejectUnauthorized: true },
+        ssl: { rejectUnauthorized: false },
       };
 
       sqlConnection = postgres(connectionConfig);

@@ -58,8 +58,7 @@ def _connect_to_db():
                 'port': db_secret["port"], 
                 'sslmode': 'require'
             }
-            connection_string = " ".join([f"{key}={value}" for key, value in connection_params.items()])
-            connection = psycopg2.connect(connection_string)
+            connection = psycopg2.connect(**connection_params)
             logger.info("Connected to the database!")
         except Exception as e:
             logger.error(f"Failed to connect to database: {e}")
@@ -100,8 +99,9 @@ def _parse_body(event):
     return body
 
 def handler(event, context=None):
-    logger.info("Event: %s", json.dumps(event))
-
+    safe_event = {k: v for k, v in event.items() if k != 'body'}
+    logger.info("Event: %s (body omitted)", json.dumps(safe_event))
+    
     try:
         # Scheduler polling path
         if event.get("task") == "poll_ingestion_run":
