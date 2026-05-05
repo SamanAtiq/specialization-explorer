@@ -25,7 +25,7 @@ async function initializeConnection(SM_DB_CREDENTIALS, RDS_PROXY_ENDPOINT) {
       username: credentials.username,
       password: credentials.password,
       database: credentials.dbname,
-      ssl: { rejectUnauthorized: false },
+      ssl: { rejectUnauthorized: true },
     };
 
     // Create the PostgreSQL connection

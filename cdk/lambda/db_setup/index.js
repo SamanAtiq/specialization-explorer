@@ -5,8 +5,12 @@ const {
 } = require("@aws-sdk/client-secrets-manager");
 const { Client } = require("pg");
 const crypto = require("crypto");
+const fs = require("fs");
 const path = require("path");
 const migrate = require("node-pg-migrate").default;
+
+// RDS CA bundle — bundled with the Lambda package
+const RDS_CA = fs.readFileSync(path.join(__dirname, "global-bundle.pem"));
 
 const sm = new SecretsManagerClient();
 
@@ -33,7 +37,7 @@ async function runMigrations(db) {
   await migrate({
     databaseUrl: {
       connectionString: dbUrl,
-      ssl: { rejectUnauthorized: false },
+      ssl: { rejectUnauthorized: true, ca: RDS_CA },
     },
     dir: path.join(__dirname, "migrations"),
     direction: "up",
@@ -60,7 +64,10 @@ async function createAppUsers(
     host: adminDb.host,
     database: adminDb.dbname, // target DB
     port: adminDb.port || 5432,
-    ssl: {rejectUnauthorized: false}, // set true or config if needed
+    ssl: {
+      rejectUnauthorized: true,
+      ca: RDS_CA,
+    },
   });
   await adminClient.connect();
 
