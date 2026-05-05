@@ -12,7 +12,6 @@
   - [Step 1: Fork \& Clone The Repository](#step-1-fork--clone-the-repository)
   - [Step 2: Upload Secrets \& Parameters](#step-2-upload-secrets--parameters)
   - [Step 3: CDK Deployment](#step-3-cdk-deployment)
-  - [Step 3a: CDK Deployment with an Existing VPC](#step-3a-cdk-deployment-with-an-existing-vpc)
 - [Post-Deployment](#post-deployment)
   - [Step 1: Build AWS Amplify App](#step-1-build-aws-amplify-app)
   - [Step 2: Configure Admin User](#step-2-configure-admin-user)
@@ -403,6 +402,80 @@ Note: Guardrails (Bedrock) are created as part of the CDK deployment. For operat
 
 Open a terminal in the `/cdk` directory.
 
+#### CDK Deployment with an Existing VPC (Optional)
+
+The following instructions are only relevant if you want to deploy this application using an **existing VPC** (e.g., an AWS Control Tower-managed VPC). If you are deploying with a new VPC, skip this section and proceed to [Initialize the CDK stack](#initialize-the-cdk-stack).
+
+To use an existing VPC, you will need access to the **aws-controltower-VPC** and the name of your **AWSControlTowerStackSet**.
+
+##### Step-by-Step Instructions
+
+**1. Set your existing VPC ID**
+
+Open `cdk/lib/vpc-stack.ts` and set the `existingVpcId` variable to your existing VPC ID:
+
+```typescript
+const existingVpcId: string = "your-vpc-id"; // CHANGE IF DEPLOYING WITH EXISTING VPC
+```
+
+You can find your VPC ID in the **VPC dashboard** of the AWS Console under **Your VPCs**.
+
+![VPC ID](media/ExistingVPCId.png)
+
+**2. Set your AWS Control Tower Stack Set name**
+
+In the same file, update the `AWSControlTowerStackSet` variable with your stack set name:
+
+```typescript
+const AWSControlTowerStackSet = "your-stackset-name"; // CHANGE TO YOUR CONTROL TOWER STACK SET
+```
+
+You can find this in the **CloudFormation** console under **Stacks**. Look for a stack whose name starts with `StackSet-AWSControlTowerBP-VPC-ACCOUNT-FACTORY`.
+
+![AWS Control Tower Stack Set](media/AWSControlTowerStack.png)
+
+The stack set name is used to import the private subnet IDs, route table IDs, and subnet CIDR ranges via CloudFormation exports — so it must match exactly.
+
+---
+
+##### Second Deployment in the Same Environment with an Existing VPC
+
+The following instructions only apply if this is the **second project** you are deploying into the same existing VPC. If this is your first deployment, skip this section.
+
+When deploying a second project into the same VPC, a new public subnet is created for the NAT Gateway. You need to provide an available **Public Subnet ID** from the first deployment and an unused **CIDR range** within the VPC.
+
+**1. Set the existing public subnet ID**
+
+Update the `existingPublicSubnetID` variable in `cdk/lib/vpc-stack.ts`:
+
+```typescript
+const existingPublicSubnetID: string = "your-public-subnet-id"; // CHANGE IF DEPLOYING WITH EXISTING PUBLIC SUBNET
+```
+
+To find the public subnet ID:
+- Go to **VPC → Subnets** in the AWS Console
+- Identify the public subnet from your first deployment (it will have a route table entry pointing to an Internet Gateway)
+- Copy its **Subnet ID**
+
+**2. Update the public subnet CIDR range**
+
+The `publicSubnetCidr` variable defines the CIDR block for the new public subnet. It must not overlap with any existing subnets in the VPC:
+
+```typescript
+const publicSubnetCidr = "172.31.0.0/20"; // Must not overlap with private subnets
+```
+
+To find an available CIDR block:
+- Go to **VPC → Subnets** and note the CIDR blocks of all existing subnets in your VPC
+- The third octet of a `/20` block must be a **multiple of 16** within the VPC range (e.g., `172.31.0.0/20`, `172.31.16.0/20`, `172.31.32.0/20`, etc.)
+- Pick the first unused block
+
+For example, if existing subnets use `172.31.0.0/20` and `172.31.16.0/20`, use `172.31.32.0/20` as your next available range.
+
+---
+
+#### Initialize the CDK stack
+
 **Initialize the CDK stack** (required only if you have not deployed any resources with CDK in this region before). Please replace `<YOUR-PROFILE-NAME>` with the appropriate AWS profile used earlier.
 
 ```bash
@@ -517,77 +590,7 @@ This means in most cases you do not need to manually trigger the pipeline — it
 
 ---
 
-### Step 3a: CDK Deployment with an Existing VPC
 
-The following instructions are only relevant if you want to deploy this application using an **existing VPC** (e.g., an AWS Control Tower-managed VPC). If you are deploying with a new VPC, skip this section.
-
-To use an existing VPC, you will need access to the **aws-controltower-VPC** and the name of your **AWSControlTowerStackSet**.
-
-#### Step-by-Step Instructions
-
-**1. Set your existing VPC ID**
-
-Open `cdk/lib/vpc-stack.ts` and set the `existingVpcId` variable to your existing VPC ID:
-
-```typescript
-const existingVpcId: string = "your-vpc-id"; // CHANGE IF DEPLOYING WITH EXISTING VPC
-```
-
-You can find your VPC ID in the **VPC dashboard** of the AWS Console under **Your VPCs**.
-
-![VPC ID](media/ExistingVPCId.png)
-
-**2. Set your AWS Control Tower Stack Set name**
-
-In the same file, update the `AWSControlTowerStackSet` variable with your stack set name:
-
-```typescript
-const AWSControlTowerStackSet = "your-stackset-name"; // CHANGE TO YOUR CONTROL TOWER STACK SET
-```
-
-You can find this in the **CloudFormation** console under **Stacks**. Look for a stack whose name starts with `StackSet-AWSControlTowerBP-VPC-ACCOUNT-FACTORY`.
-
-![AWS Control Tower Stack Set](media/AWSControlTowerStack.png)
-
-The stack set name is used to import the private subnet IDs, route table IDs, and subnet CIDR ranges via CloudFormation exports — so it must match exactly.
-
----
-
-#### Second Deployment in the Same Environment with an Existing VPC
-
-The following instructions only apply if this is the **second project** you are deploying into the same existing VPC. If this is your first deployment, skip this section.
-
-When deploying a second project into the same VPC, a new public subnet is created for the NAT Gateway. You need to provide an available **Public Subnet ID** from the first deployment and an unused **CIDR range** within the VPC.
-
-**1. Set the existing public subnet ID**
-
-Update the `existingPublicSubnetID` variable in `cdk/lib/vpc-stack.ts`:
-
-```typescript
-const existingPublicSubnetID: string = "your-public-subnet-id"; // CHANGE IF DEPLOYING WITH EXISTING PUBLIC SUBNET
-```
-
-To find the public subnet ID:
-- Go to **VPC → Subnets** in the AWS Console
-- Identify the public subnet from your first deployment (it will have a route table entry pointing to an Internet Gateway)
-- Copy its **Subnet ID**
-
-**2. Update the public subnet CIDR range**
-
-The `publicSubnetCidr` variable defines the CIDR block for the new public subnet. It must not overlap with any existing subnets in the VPC:
-
-```typescript
-const publicSubnetCidr = "172.31.0.0/20"; // Must not overlap with private subnets
-```
-
-To find an available CIDR block:
-- Go to **VPC → Subnets** and note the CIDR blocks of all existing subnets in your VPC
-- The third octet of a `/20` block must be a **multiple of 16** within the VPC range (e.g., `172.31.0.0/20`, `172.31.16.0/20`, `172.31.32.0/20`, etc.)
-- Pick the first unused block
-
-For example, if existing subnets use `172.31.0.0/20` and `172.31.16.0/20`, use `172.31.32.0/20` as your next available range.
-
----
 
 ## Post-Deployment
 
