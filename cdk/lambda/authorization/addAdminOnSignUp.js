@@ -8,10 +8,11 @@ const { SM_DB_CREDENTIALS, RDS_PROXY_ENDPOINT } = process.env;
 let sqlConnection = global.sqlConnection;
 
 exports.handler = async (event) => {
-  console.log(
-    "Post-confirmation trigger event:",
-    JSON.stringify(event, null, 2)
-  );
+  console.log("Post-confirmation trigger:", {
+    userName:event.userName,
+    userPoolId: event.userPoolId, 
+    triggerSource: event.triggerSource,
+  })
 
   if (!sqlConnection) {
     await initializeConnection(SM_DB_CREDENTIALS, RDS_PROXY_ENDPOINT);

@@ -32,8 +32,10 @@ export class DBFlowStack extends Stack {
           "secretsmanager:PutSecretValue",
         ],
         resources: [
-          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*`,
-        ],
+        `arn:aws:secretsmanager:${this.region}:${this.account}:secret:${db.secretPathAdminName}-*`,
+        db.secretPathUser.secretArn,
+        db.secretPathTableCreator.secretArn,
+        ]
       })
     );
 
@@ -65,10 +67,6 @@ export class DBFlowStack extends Stack {
     // Add additional managed policies
     lambdaRole.addManagedPolicy(
       iam.ManagedPolicy.fromAwsManagedPolicyName("AmazonSSMReadOnlyAccess")
-    );
-
-    lambdaRole.addManagedPolicy(
-      iam.ManagedPolicy.fromAwsManagedPolicyName("AmazonS3FullAccess")
     );
 
     // Create a Lambda layer for node-pg-migrate
