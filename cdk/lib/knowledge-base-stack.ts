@@ -339,20 +339,42 @@ export class KnowledgeBaseStack extends Stack {
       managedPolicies: [iam.ManagedPolicy.fromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole")],
     });
 
+    // Create/List actions cannot be scoped to a specific resource ARN
     kbProvisionerRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
         "bedrock:CreateKnowledgeBase",
+        "bedrock:ListDataSources",
+      ],
+      resources: ["*"],
+    }));
+
+    // Remaining actions scoped to knowledge base ARNs in this account/region
+    kbProvisionerRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
         "bedrock:GetKnowledgeBase",
         "bedrock:UpdateKnowledgeBase",
         "bedrock:DeleteKnowledgeBase",
         "bedrock:CreateDataSource",
-        "bedrock:ListDataSources",
         "bedrock:UpdateDataSource",
         "bedrock:DeleteDataSource",
-        "iam:PassRole"
       ],
-      resources: ["*"], 
+      resources: [
+        `arn:aws:bedrock:${region}:${accountId}:knowledge-base/*`,
+      ],
+    }));
+
+    // PassRole scoped to the KB role, only passable to Bedrock
+    kbProvisionerRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ["iam:PassRole"],
+      resources: [knowledgeBaseRole.roleArn],
+      conditions: {
+        StringEquals: {
+          "iam:PassedToService": "bedrock.amazonaws.com",
+        },
+      },
     }));
 
     // ENI permissions for VPC-attached Lambda execution
