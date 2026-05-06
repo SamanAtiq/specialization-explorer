@@ -20,16 +20,15 @@ export class VpcStack extends Stack {
     props: StackProps & { stackPrefix: string }
   ) {
     super(scope, id, props);
-    // TODO: Remove existing vpcId and ControlTowerStackSet before going public
-    const existingVpcId: string = "vpc-0515a0d6ee4abcd8e"; // CHANGE IF DEPLOYING WITH EXISTING VPC
+    const existingVpcId: string = ""; // CHANGE IF DEPLOYING WITH EXISTING VPC
 
     if (existingVpcId !== "") {
-      const AWSControlTowerStackSet = "StackSet-AWSControlTowerBP-VPC-ACCOUNT-FACTORY-V1-df80d055-f27d-4b9a-917f-f0db2da2ad91"; // CHANGE TO YOUR CONTROL TOWER STACK SET
+      const AWSControlTowerStackSet = ""; // CHANGE TO YOUR CONTROL TOWER STACK SET
       const existingPublicSubnetID: string = ""; // CHANGE IF DEPLOYING WITH EXISTING PUBLIC SUBNET
 
       const latPrefix = props.stackPrefix;
 
-      const publicSubnetCidr = "172.31.0.0/20"; // Must not overlap with private subnets
+      const publicSubnetCidr = "172.31.0.0/20"; // CHANGE TO YOUR PUBLIC SUBNET CIDR; IT MUST NOT OVERLAP WITH PRIVATE SUBNETS
       this.vpcCidrString = "172.31.0.0/16";
 
       // VPC for application
