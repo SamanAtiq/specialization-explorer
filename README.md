@@ -101,11 +101,13 @@ Please refer to [Knowledge Base Documentation](docs/KNOWLEDGE_BASE_DOCUMENTATION
 │   ├── media/
 │   ├── API_DOCUMENTATION.md
 │   ├── ARCHITECTURE_DEEP_DIVE.md
+│   ├── AWS_MANAGED_KEYS.md
 │   ├── BEDROCK_GUARDRAILS.md
 │   ├── DATABASE_MIGRATIONS.md
 │   ├── DEPENDENCY_MANAGEMENT.MD
 │   ├── DEPLOYMENT_GUIDE.md
 │   ├── MODIFICATION_GUIDE.md
+│   ├── SECURITY_OVERVIEW.md
 │   └── USER_GUIDE.md
 │
 └── frontend/
@@ -163,6 +165,7 @@ Please refer to [Knowledge Base Documentation](docs/KNOWLEDGE_BASE_DOCUMENTATION
 ### Architecture and Design
 
 - **[Architecture Deep Dive](Docs/ARCHITECTURE_DEEP_DIVE.md)**: Comprehensive overview of system architecture and component interactions
+- **[Security Overview](Docs/SECURITY_OVERVIEW.md)**: Security architecture, controls, and compliance summary
 
 ### Deployment and Configuration
 
