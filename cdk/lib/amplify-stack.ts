@@ -57,9 +57,22 @@ export class AmplifyStack extends cdk.Stack {
       this,
       "specEx-owner-name"
     );
+    // DEPLOYMENT_CHANGE_22: Declared an explicit service role with a CompositePrincipal 
+    // to satisfy role assumption handshakes within the ca-central-1 region.
+    const amplifyServiceRole = new iam.Role(this, `${id}-AmplifyServiceRole`, {
+      assumedBy: new iam.CompositePrincipal(
+        new iam.ServicePrincipal("amplify.amazonaws.com"),
+        new iam.ServicePrincipal("amplify.ca-central-1.amazonaws.com")
+      ),
+      description: "Service execution role for AWS Amplify frontend pipelines in ca-central-1",
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName("AdministratorAccess-Amplify"),
+      ],
+    });
 
     const amplifyApp = new App(this, `${id}-amplifyApp`, {
       appName: `${id}-amplify`,
+      role: amplifyServiceRole, // DEPLOYMENT_CHANGE_23: Bound the regional role to the App context
       sourceCodeProvider: new GitHubSourceCodeProvider({
         owner: username,
         repository: githubRepoName,
