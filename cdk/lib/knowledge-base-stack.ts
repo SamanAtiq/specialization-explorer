@@ -63,6 +63,10 @@ export class KnowledgeBaseStack extends Stack {
       allowAllOutbound: false,
     });
     lambdaSg.addEgressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(443), 'Allow outbound HTTPS');
+    
+    // DEPLOYMENT_CHANGE_17: Added missing Port 53 Egress rules to allow corporate DNS lookups inside the VPC
+    lambdaSg.addEgressRule(ec2.Peer.anyIpv4(), ec2.Port.udp(53), 'Allow outbound DNS resolution queries over UDP');
+    lambdaSg.addEgressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(53), 'Allow outbound DNS resolution queries over TCP');
 
     // Security group for AOSS VPC endpoint (inbound HTTPS from VPC CIDR and Lambda SG)
     const vpcEndpointSg = new ec2.SecurityGroup(this, 'AossVpcEndpointSg', {
@@ -79,7 +83,6 @@ export class KnowledgeBaseStack extends Stack {
      * pivot to public access endpoints secured by IAM Data Access Policies.
      */
     /*
-    // OpenSearch Serverless VPC endpoint in private subnets
     const aossVpcEndpoint = new opensearchserverless.CfnVpcEndpoint(this, 'AossVpcEndpoint', {
       name: `${collectionName}-vpce`,
       vpcId: props.vpc.vpcId,
@@ -128,7 +131,6 @@ export class KnowledgeBaseStack extends Stack {
      * from data plane queries via the standard OpenSearch Serverless Data Access Policies.
      * Removed the explicit structural dependency on 'aossVpcEndpoint'.
      */
-    // Create network policy for OpenSearch Serverless (private access via VPC endpoint and Bedrock service)
     const networkPolicy = new opensearchserverless.CfnSecurityPolicy(this, "NetworkPolicy", {
       name: `${collectionName}-net`,
       type: "network",
@@ -281,6 +283,7 @@ export class KnowledgeBaseStack extends Stack {
       code: lambda.DockerImageCode.fromEcr(props.vectorIndexManagerRepository, {
         tagOrDigest: "latest",
       }),
+      // DEPLOYMENT_CHANGE_18: Re-attached to corporate VPC subnets securely
       vpc: props.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       securityGroups: [lambdaSg],
@@ -407,6 +410,7 @@ export class KnowledgeBaseStack extends Stack {
       timeout: cdk.Duration.minutes(15),
       memorySize: 512,
       code: lambda.Code.fromAsset("lambda/knowledgeBaseProvisioner"),
+      // DEPLOYMENT_CHANGE_19: Re-attached to corporate VPC subnets securely
       vpc: props.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       securityGroups: [lambdaSg],
@@ -531,4 +535,3 @@ export class KnowledgeBaseStack extends Stack {
     });
   }
 }
-
